@@ -80,6 +80,7 @@ type DotStoreType = {
   dotAnimState: DotAnimState
   isStreaming: boolean
   streamBuffer: string
+  dotIsTyping: boolean   // true between segmented messages
   chatVisible: boolean
   canTriggerQuiz: boolean
   homeworkLines: HomeworkLine[]
@@ -106,9 +107,11 @@ export function DotProvider({ children }: { children: ReactNode }) {
   const [dotAnimState, setDotAnimState] = useState<DotAnimState>('idle')
   const [isStreaming, setIsStreaming] = useState(false)
   const [streamBuffer, setStreamBuffer] = useState('')
+  const [dotIsTyping, setDotIsTyping] = useState(false)
   const [chatVisible, setChatVisible] = useState(false)
   const [canTriggerQuiz, setCanTriggerQuiz] = useState(false)
   const [onboardingCount, setOnboardingCount] = useState(0)
+  const [coreExchangeCount, setCoreExchangeCount] = useState(0)
   const [homeworkLines, setHomeworkLines] = useState<HomeworkLine[]>(INITIAL_HOMEWORK)
   const [algebraLines, setAlgebraLines] = useState<WorkLine[]>([])
   const [quizItems, setQuizItems] = useState<QuizItem[]>(INITIAL_QUIZ)
@@ -133,6 +136,8 @@ export function DotProvider({ children }: { children: ReactNode }) {
       setDotAnimState('thinking')
       bufferRef.current = ''
       setStreamBuffer('')
+
+      let fullText = ''
       try {
         const res = await fetch('/api/chat', {
           method: 'POST',
@@ -151,17 +156,37 @@ export function DotProvider({ children }: { children: ReactNode }) {
             const { done, value } = await reader.read()
             if (done) break
             bufferRef.current += value
-            setStreamBuffer(bufferRef.current)
+            // Show stream buffer with ||| hidden so it doesn't flash
+            setStreamBuffer(bufferRef.current.replace(/\|\|\|/g, ' '))
           }
         } finally { reader.releaseLock() }
-        const fullText = bufferRef.current
-        addDotMessage(fullText)
-        return fullText
+        fullText = bufferRef.current
       } finally {
         setStreamBuffer('')
         setIsStreaming(false)
-        setDotAnimState('idle')
       }
+
+      // Split on ||| and deliver segments with typing delays
+      const segments = fullText.split('|||').map((s) => s.trim()).filter(Boolean)
+      if (segments.length === 0) {
+        setDotAnimState('idle')
+        return fullText
+      }
+
+      addDotMessage(segments[0])
+
+      for (let i = 1; i < segments.length; i++) {
+        const seg = segments[i]
+        // Delay proportional to segment length — feels like live typing
+        const typingMs = Math.min(900 + seg.length * 28, 3800)
+        setDotIsTyping(true)
+        await new Promise((r) => setTimeout(r, typingMs))
+        setDotIsTyping(false)
+        addDotMessage(seg)
+      }
+
+      setDotAnimState('idle')
+      return fullText
     },
     [addDotMessage],
   )
@@ -267,7 +292,13 @@ export function DotProvider({ children }: { children: ReactNode }) {
         }
 
       } else if (phase === 'core-teach') {
-        setCanTriggerQuiz(true)
+        // Only unlock the quiz after the student has taught across ≥2 problems
+        // and had ≥4 exchanges in total — gives Dot time to ask "why" a few times
+        const nextExchangeCount = coreExchangeCount + 1
+        setCoreExchangeCount(nextExchangeCount)
+        if (currentProblemIndex >= 1 && nextExchangeCount >= 4) {
+          setCanTriggerQuiz(true)
+        }
 
         let updatedKnowledge = knowledge
         try {
@@ -297,7 +328,8 @@ export function DotProvider({ children }: { children: ReactNode }) {
       }
     },
     [
-      phase, messages, knowledge, currentProblem, onboardingCount,
+      phase, messages, knowledge, currentProblem, currentProblemIndex,
+      onboardingCount, coreExchangeCount,
       streamDotResponse, evaluateExplanation,
     ],
   )
@@ -391,6 +423,7 @@ export function DotProvider({ children }: { children: ReactNode }) {
         dotAnimState,
         isStreaming,
         streamBuffer,
+        dotIsTyping,
         chatVisible,
         canTriggerQuiz,
         homeworkLines,

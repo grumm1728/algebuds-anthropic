@@ -36,7 +36,7 @@ function Chalkboard() {
     <div
       onClick={handleClick}
       className={cn(
-        'mx-auto w-4/5 rounded-t-sm bg-[#2d5a27] px-6 pt-6 pb-10 text-center shadow-inner relative',
+        'mx-auto w-[92%] rounded-t-sm bg-[#2d5a27] px-6 pt-6 pb-10 text-center shadow-inner relative',
         clickable &&
           'cursor-pointer ring-2 ring-yellow-400 ring-offset-2 hover:bg-[#3a7a33] transition-colors',
       )}
@@ -83,11 +83,6 @@ function PenOnDesk() {
       <div className="w-1.5 h-[5px] bg-[#1d4ed8]" />
       {/* Cap */}
       <div className="w-3 h-[5px] bg-[#1e40af] rounded-r-full" />
-      {/* Clip */}
-      <div
-        className="absolute right-1 w-[2px] h-5 bg-[#1e40af] rounded-full"
-        style={{ top: '-7px' }}
-      />
     </div>
   )
 }
@@ -195,8 +190,8 @@ function ClassroomScene() {
           </div>
         </div>
 
-        {/* Window — right wall */}
-        <div className="absolute top-4 right-5 w-20 h-16 rounded-sm border-[3px] border-[#8b6914]/50 shadow-md overflow-hidden">
+        {/* Window — top-right corner, larger */}
+        <div className="absolute top-3 right-3 w-28 h-22 rounded-sm border-[3px] border-[#8b6914]/50 shadow-md overflow-hidden">
           {/* Sky */}
           <div className="absolute inset-0 bg-[#c8e8f8]" />
           {/* Window cross bars */}
@@ -210,8 +205,8 @@ function ClassroomScene() {
           <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-[#8b6914]/30" />
         </div>
 
-        {/* Clock — above chalkboard, right of center */}
-        <div className="absolute top-3 left-[58%] w-9 h-9 rounded-full bg-[#f5efe0] border-2 border-[#8b6914]/50 shadow-sm">
+        {/* Clock — centered at top of wall */}
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 w-10 h-10 rounded-full bg-[#f5efe0] border-2 border-[#8b6914]/50 shadow-sm">
           {/* Hour markers */}
           {[0, 60, 120, 180, 240, 300].map((deg) => (
             <div

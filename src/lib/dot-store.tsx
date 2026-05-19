@@ -112,6 +112,7 @@ export function DotProvider({ children }: { children: ReactNode }) {
   const [canTriggerQuiz, setCanTriggerQuiz] = useState(false)
   const [onboardingCount, setOnboardingCount] = useState(0)
   const [coreExchangeCount, setCoreExchangeCount] = useState(0)
+  const [perProblemExchangeCount, setPerProblemExchangeCount] = useState(0)
   const [homeworkLines, setHomeworkLines] = useState<HomeworkLine[]>(INITIAL_HOMEWORK)
   const [algebraLines, setAlgebraLines] = useState<WorkLine[]>([])
   const [quizItems, setQuizItems] = useState<QuizItem[]>(INITIAL_QUIZ)
@@ -208,6 +209,36 @@ export function DotProvider({ children }: { children: ReactNode }) {
     [],
   )
 
+  // ── advanceWorkspaceToProblem ─────────────────────────────────────────────
+  // Updates the workspace to show the next problem + Dot's (wrong) attempt,
+  // stays in core-teach phase. Used by both auto-advance and the helpDot button.
+
+  const advanceWorkspaceToProblem = useCallback(async (nextIndex: number) => {
+    const nextProblem = ALGEBRA_PROBLEMS[nextIndex]
+    if (!nextProblem) return
+
+    setCurrentProblemIndex(nextIndex)
+    setPerProblemExchangeCount(0)
+    setCanTriggerQuiz(false)
+
+    // Write new equation to workspace
+    await new Promise((r) => setTimeout(r, 900))
+    setAlgebraLines([{ id: lineId(), text: nextProblem.equation, style: 'equation' }])
+
+    // Then Dot's wrong attempt
+    await new Promise((r) => setTimeout(r, 800))
+    setAlgebraLines((prev) => [
+      ...prev,
+      { id: lineId(), text: PAGE_ATTEMPTS[nextProblem.id], style: 'wrong-attempt' },
+    ])
+
+    // Dot's scripted chat message pointing to the notebook
+    await new Promise((r) => setTimeout(r, 500))
+    addDotMessage(
+      `ooh wait!! I want to try using that on a new problem to see if I really get it — I wrote my attempt in the notebook! can you check if I did it right?`,
+    )
+  }, [addDotMessage])
+
   // ── openNotebook ───────────────────────────────────────────────────────────
 
   const openHomeworkNotebook = useCallback(() => {
@@ -294,45 +325,48 @@ export function DotProvider({ children }: { children: ReactNode }) {
         }
 
       } else if (phase === 'core-teach') {
-        // Only unlock the quiz after the student has taught across ≥2 problems
-        // and had ≥4 exchanges in total — gives Dot time to ask "why" a few times
+        // Global exchange counter — gates the quiz CTA
         const nextExchangeCount = coreExchangeCount + 1
         setCoreExchangeCount(nextExchangeCount)
         if (currentProblemIndex >= 1 && nextExchangeCount >= 4) {
           setCanTriggerQuiz(true)
         }
 
+        // Per-problem count — triggers Dot trying the next problem
+        const newPerCount = perProblemExchangeCount + 1
+
         let updatedKnowledge = knowledge
+        let evalQuality = 'vague'
         try {
           const evaluation = await evaluateExplanation(text, knowledge, currentProblem!)
           updatedKnowledge = evaluation.updatedKnowledge
+          evalQuality = evaluation.quality
           setKnowledge(updatedKnowledge)
-
-          // Append solution steps to page if something was actually taught
-          if (evaluation.conceptsCovered.length > 0 && currentProblem) {
-            const steps = currentProblem.solutionSteps
-            steps.forEach((step, i) => {
-              setTimeout(() => {
-                setAlgebraLines((prev) => {
-                  // Don't duplicate — only add if not already there
-                  const exists = prev.some((l) => l.text === step)
-                  if (exists) return prev
-                  return [...prev, { id: lineId(), text: step, style: i === steps.length - 1 ? 'result' : 'step' }]
-                })
-              }, i * 350)
-            })
-          }
         } catch (err) {
           console.error('Evaluation error:', err)
         }
 
         await streamDotResponse(nextMessages, updatedKnowledge, 'core-teach', currentProblem)
+
+        // After Dot responds: if enough teaching has happened on this problem,
+        // have her try the next one in the workspace
+        const nextIdx = currentProblemIndex + 1
+        const shouldAdvance =
+          newPerCount >= 2 &&
+          evalQuality !== 'vague' &&
+          nextIdx < ALGEBRA_PROBLEMS.length
+
+        if (shouldAdvance) {
+          await advanceWorkspaceToProblem(nextIdx)
+        } else {
+          setPerProblemExchangeCount(newPerCount)
+        }
       }
     },
     [
       phase, messages, knowledge, currentProblem, currentProblemIndex,
-      onboardingCount, coreExchangeCount,
-      streamDotResponse, evaluateExplanation,
+      onboardingCount, coreExchangeCount, perProblemExchangeCount,
+      streamDotResponse, evaluateExplanation, advanceWorkspaceToProblem,
     ],
   )
 
@@ -400,13 +434,8 @@ export function DotProvider({ children }: { children: ReactNode }) {
   const helpDot = useCallback(() => {
     const nextIndex = currentProblemIndex + 1
     if (nextIndex >= ALGEBRA_PROBLEMS.length) return
-    setCurrentProblemIndex(nextIndex)
-    setAlgebraLines([])
-    setCanTriggerQuiz(false)
-    setPhase('core-intro')
-    const problem = ALGEBRA_PROBLEMS[nextIndex]
-    setTimeout(() => addDotMessage(ALGEBRA_INTRO(problem, FIRST_ATTEMPTS[problem.id])), 300)
-  }, [currentProblemIndex, addDotMessage])
+    advanceWorkspaceToProblem(nextIndex)
+  }, [currentProblemIndex, advanceWorkspaceToProblem])
 
   // ── redoQuiz ───────────────────────────────────────────────────────────────
 

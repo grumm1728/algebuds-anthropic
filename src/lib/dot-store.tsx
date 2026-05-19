@@ -156,8 +156,8 @@ export function DotProvider({ children }: { children: ReactNode }) {
             const { done, value } = await reader.read()
             if (done) break
             bufferRef.current += value
-            // Show stream buffer with ||| hidden so it doesn't flash
-            setStreamBuffer(bufferRef.current.replace(/\|\|\|/g, ' '))
+            // Keep raw buffer (with |||) — ChatFeed clips to the first segment
+            setStreamBuffer(bufferRef.current)
           }
         } finally { reader.releaseLock() }
         fullText = bufferRef.current

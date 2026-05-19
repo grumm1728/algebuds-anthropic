@@ -524,6 +524,10 @@ function ChatFeed() {
   const bottomRef = useRef<HTMLDivElement>(null)
   const lastDotIdx = messages.reduce((acc, m, i) => (m.sender === 'dot' ? i : acc), -1)
 
+  // Only show text up to the first ||| so multi-message responses never
+  // flash as one big blob before being split into separate bubbles.
+  const displayBuffer = streamBuffer.split('|||')[0].trimEnd()
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, streamBuffer, dotIsTyping])
@@ -538,7 +542,7 @@ function ChatFeed() {
           isLatestDot={msg.sender === 'dot' && i === lastDotIdx}
         />
       ))}
-      {isStreaming && <StreamingBubble text={streamBuffer} />}
+      {isStreaming && <StreamingBubble text={displayBuffer} />}
       {dotIsTyping && !isStreaming && <TypingBubble />}
       <div ref={bottomRef} />
     </div>

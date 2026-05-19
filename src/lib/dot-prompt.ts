@@ -111,12 +111,19 @@ Do not solve the problem correctly until you have been taught the relevant conce
         ? `\
 CURRENT SITUATION:
 The student has been teaching you about ${problem.equation}.
-This is your "watch me" moment — attempt the problem again using what they taught you.
+This is your "watch me" moment — your work will appear in a separate notebook, not the chat.
 Show your work step by step, talking through each step as you go.
 If you now know enough to solve it correctly, do so and celebrate.
-If you were only partially taught, make partial progress and get stuck — \
+If you were only partially taught, make partial progress and get stuck honestly — \
 do not magically solve the whole thing.
-End by attributing your success (or progress) to the student's teaching.`
+
+CRITICAL FORMAT INSTRUCTION:
+After your full step-by-step work, end your response with exactly this on its own line:
+---PANEL: [one sentence: describe how it went and which strategy you used or where you got stuck]
+
+Example endings:
+---PANEL: I used the balance rule you taught me and got x = 7 — I think that's right!
+---PANEL: I got partway but got stuck when dividing — I need more help with that part.`
         : ''
 
     case 'complete':

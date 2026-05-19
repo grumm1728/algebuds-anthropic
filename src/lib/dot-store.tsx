@@ -19,25 +19,34 @@ import type {
 } from './types'
 import { ALGEBRA_PROBLEMS, INITIAL_KNOWLEDGE } from './problems'
 
-// ── Scripted content for key moments ──────────────────────────────────────────
+// ── Scripted content ───────────────────────────────────────────────────────────
 
 const OPENING_MESSAGE =
   "oh hi!! I just finished my whole homework list SO fast!! but... my teacher circled some. I got 37 + 15 = 42, and 28 + 23 = 41, and 46 + 17 = 53. they're all marked wrong but I can't see why 😟 can you help me figure out what I keep messing up?"
 
-const WATCHME_ONBOARDING =
-  "oh!! OH!! the carry!! when the ones column adds up past 9 I have to carry a ten to the next column!! ok ok — 37+15: 7+5=12, write the 2, carry 1, then 3+1+1=5, so 52!! 28+23: 8+3=11, write 1 carry 1, 2+2+1=5, so 51! 46+17: 6+7=13, write 3 carry 1, 4+1+1=6, so 63!! YOU TAUGHT ME THAT!!! 🐢✨✨"
+// Fired after 2 onboarding exchanges — one problem only, attribution specific
+function makeWatchMeOnboarding(lastStudentMessage: string) {
+  const hint = lastStudentMessage.toLowerCase().includes('carry')
+    ? 'the carry thing you explained'
+    : lastStudentMessage.toLowerCase().includes('ten')
+    ? 'the tens column thing you pointed out'
+    : 'what you just showed me'
+  return `wait— ok let me try ONE: 37 + 15. ones: 7+5=12, write the 2, carry the 1 to the tens!! tens: 3+1=4, plus that carry = 5. so 52!! 🐢 that's it — it was ${hint}!! I can redo all my others now too!`
+}
 
 const ALGEBRA_INTRO = (problem: AlgebraProblem, wrongAnswer: string) =>
-  `ok!! now my teacher gave us algebra — equations with x. I tried the first one: ${problem.equation}. I got ${wrongAnswer}... but it got marked wrong. can you teach me what to do?`
+  `ok!! my teacher also gave us algebra — equations with x. I tried this one: ${problem.equation}. I got ${wrongAnswer}. marked wrong. what am I doing wrong?`
 
-// Dot's wrong first attempts — rooted in the seeded misconceptions
 const FIRST_ATTEMPTS: Record<string, string> = {
-  p1: 'x = 17 (I moved the 5 to the other side and it became 12 + 5)',
-  p2: 'x = 18 (I moved the 3 to the other side and added)',
-  p3: 'x = 5 (I divided by 3 but I think fractions work different?)',
-  p4: 'x = 9.5 (I divided 19 by 2 right away)',
-  p5: 'x = 9 (I divided 18 by 2 right away)',
+  p1: 'x = 17 (moved the 5 over and added it)',
+  p2: 'x = 18 (moved the 3 over and added)',
+  p3: 'x = 5 (divided by 3)',
+  p4: 'x = 9.5 (divided 19 by 2 first)',
+  p5: 'x = 9 (divided 18 by 2 first)',
 }
+
+const COMPLETE_MESSAGE =
+  "we did it!! all five!! I actually understand equations now — not just the steps, the WHY behind each one. I already have ideas for my drawing program... maybe I can use this to make perfect spirals!! thank you for teaching me 🐢✨"
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -53,6 +62,20 @@ function toApiMessages(msgs: TeachMessage[]) {
   }))
 }
 
+function parseWatchMeResponse(raw: string): { notebookContent: string; panelReaction: string } {
+  const parts = raw.split('---PANEL:')
+  if (parts.length >= 2) {
+    return {
+      notebookContent: parts[0].trim(),
+      panelReaction: parts[1].trim(),
+    }
+  }
+  return {
+    notebookContent: raw,
+    panelReaction: "I think I'm getting it — let me know what you thought!",
+  }
+}
+
 // ── Store type ────────────────────────────────────────────────────────────────
 
 type DotStoreType = {
@@ -64,8 +87,14 @@ type DotStoreType = {
   isStreaming: boolean
   streamBuffer: string
   canTriggerWatchMe: boolean
+  // Notebook
+  notebookOpen: boolean
+  notebookContent: string
+  notebookBuffer: string
+  // Actions
   sendMessage: (text: string) => Promise<void>
   triggerWatchMe: () => Promise<void>
+  closeNotebook: () => void
   proceedAfterWatchMe: () => void
 }
 
@@ -82,11 +111,17 @@ export function DotProvider({ children }: { children: ReactNode }) {
   const [isStreaming, setIsStreaming] = useState(false)
   const [streamBuffer, setStreamBuffer] = useState('')
   const [canTriggerWatchMe, setCanTriggerWatchMe] = useState(false)
+  const [onboardingCount, setOnboardingCount] = useState(0)
+  // Notebook
+  const [notebookOpen, setNotebookOpen] = useState(false)
+  const [notebookContent, setNotebookContent] = useState('')
+  const [notebookBuffer, setNotebookBuffer] = useState('')
+  const [pendingPanelReaction, setPendingPanelReaction] = useState<string | null>(null)
 
   const bufferRef = useRef('')
+  const notebookBufferRef = useRef('')
   const currentProblem = ALGEBRA_PROBLEMS[currentProblemIndex] ?? null
 
-  // Seed Dot's opening message on mount
   useEffect(() => {
     setMessages([{ id: genId(), sender: 'dot', text: OPENING_MESSAGE }])
   }, [])
@@ -95,7 +130,9 @@ export function DotProvider({ children }: { children: ReactNode }) {
     setMessages((prev) => [...prev, { id: genId(), sender: 'dot', text }])
   }, [])
 
-  // ── Core streaming function ────────────────────────────────────────────────
+  // ── streamDotResponse ──────────────────────────────────────────────────────
+  // target: 'chat' streams to chat buffer and commits as message
+  // target: 'notebook' streams to notebook buffer and commits to notebookContent
 
   const streamDotResponse = useCallback(
     async (
@@ -103,11 +140,18 @@ export function DotProvider({ children }: { children: ReactNode }) {
       knowledgeState: KnowledgeState,
       currentPhase: SessionPhase,
       problem: AlgebraProblem | null,
+      target: 'chat' | 'notebook' = 'chat',
     ): Promise<string> => {
       setIsStreaming(true)
       setDotAnimState('thinking')
-      bufferRef.current = ''
-      setStreamBuffer('')
+
+      if (target === 'notebook') {
+        notebookBufferRef.current = ''
+        setNotebookBuffer('')
+      } else {
+        bufferRef.current = ''
+        setStreamBuffer('')
+      }
 
       try {
         const res = await fetch('/api/chat', {
@@ -128,18 +172,30 @@ export function DotProvider({ children }: { children: ReactNode }) {
           while (true) {
             const { done, value } = await reader.read()
             if (done) break
-            bufferRef.current += value
-            setStreamBuffer(bufferRef.current)
+            if (target === 'notebook') {
+              notebookBufferRef.current += value
+              setNotebookBuffer(notebookBufferRef.current)
+            } else {
+              bufferRef.current += value
+              setStreamBuffer(bufferRef.current)
+            }
           }
         } finally {
           reader.releaseLock()
         }
 
-        const fullText = bufferRef.current
-        addDotMessage(fullText)
+        const fullText = target === 'notebook' ? notebookBufferRef.current : bufferRef.current
+
+        if (target === 'chat') {
+          addDotMessage(fullText)
+        }
         return fullText
       } finally {
-        setStreamBuffer('')
+        if (target === 'notebook') {
+          setNotebookBuffer('')
+        } else {
+          setStreamBuffer('')
+        }
         setIsStreaming(false)
         setDotAnimState('idle')
       }
@@ -147,7 +203,7 @@ export function DotProvider({ children }: { children: ReactNode }) {
     [addDotMessage],
   )
 
-  // ── Evaluate student explanation ───────────────────────────────────────────
+  // ── evaluateExplanation ────────────────────────────────────────────────────
 
   const evaluateExplanation = useCallback(
     async (
@@ -179,24 +235,27 @@ export function DotProvider({ children }: { children: ReactNode }) {
       setMessages(nextMessages)
 
       if (phase === 'onboarding-attempt' || phase === 'onboarding-teach') {
+        const newCount = onboardingCount + 1
+        setOnboardingCount(newCount)
         setPhase('onboarding-teach')
-        await streamDotResponse(nextMessages, knowledge, 'onboarding-teach', null)
 
-        // After Dot reacts, show the scripted watch-me moment
-        await new Promise((r) => setTimeout(r, 600))
-        setDotAnimState('celebrating')
-        addDotMessage(WATCHME_ONBOARDING)
+        await streamDotResponse(nextMessages, knowledge, 'onboarding-teach', null, 'chat')
 
-        // Transition to core loop
-        await new Promise((r) => setTimeout(r, 2000))
-        setDotAnimState('idle')
-        setPhase('core-teach')
-        const problem = ALGEBRA_PROBLEMS[0]
-        addDotMessage(ALGEBRA_INTRO(problem, FIRST_ATTEMPTS[problem.id]))
+        // Gate: require 2 exchanges before watch-me
+        if (newCount >= 2) {
+          await new Promise((r) => setTimeout(r, 500))
+          setDotAnimState('celebrating')
+          addDotMessage(makeWatchMeOnboarding(text))
+
+          await new Promise((r) => setTimeout(r, 2200))
+          setDotAnimState('idle')
+          setPhase('core-teach')
+          const problem = ALGEBRA_PROBLEMS[0]
+          addDotMessage(ALGEBRA_INTRO(problem, FIRST_ATTEMPTS[problem.id]))
+        }
       } else if (phase === 'core-teach') {
         setCanTriggerWatchMe(true)
 
-        // Evaluate explanation, update knowledge, then stream Dot's response
         let updatedKnowledge = knowledge
         try {
           const evaluation = await evaluateExplanation(text, knowledge, currentProblem!)
@@ -206,7 +265,13 @@ export function DotProvider({ children }: { children: ReactNode }) {
           console.error('Evaluation error:', err)
         }
 
-        await streamDotResponse(nextMessages, updatedKnowledge, 'core-teach', currentProblem)
+        await streamDotResponse(
+          nextMessages,
+          updatedKnowledge,
+          'core-teach',
+          currentProblem,
+          'chat',
+        )
       }
     },
     [
@@ -214,6 +279,7 @@ export function DotProvider({ children }: { children: ReactNode }) {
       messages,
       knowledge,
       currentProblem,
+      onboardingCount,
       streamDotResponse,
       evaluateExplanation,
       addDotMessage,
@@ -225,21 +291,45 @@ export function DotProvider({ children }: { children: ReactNode }) {
   const triggerWatchMe = useCallback(async () => {
     setPhase('core-watchme')
     setCanTriggerWatchMe(false)
-    await streamDotResponse(messages, knowledge, 'core-watchme', currentProblem)
+    setNotebookOpen(true)
+    setNotebookContent('')
+
+    const raw = await streamDotResponse(
+      messages,
+      knowledge,
+      'core-watchme',
+      currentProblem,
+      'notebook',
+    )
+
+    const { notebookContent: content, panelReaction } = parseWatchMeResponse(raw)
+    setNotebookContent(content)
+    setPendingPanelReaction(panelReaction)
     setDotAnimState('celebrating')
   }, [messages, knowledge, currentProblem, streamDotResponse])
+
+  // ── closeNotebook ──────────────────────────────────────────────────────────
+
+  const closeNotebook = useCallback(() => {
+    setNotebookOpen(false)
+    setDotAnimState('idle')
+    if (pendingPanelReaction) {
+      addDotMessage(pendingPanelReaction)
+      setPendingPanelReaction(null)
+    }
+  }, [pendingPanelReaction, addDotMessage])
 
   // ── proceedAfterWatchMe ────────────────────────────────────────────────────
 
   const proceedAfterWatchMe = useCallback(() => {
+    setNotebookOpen(false)
+    setNotebookContent('')
     setDotAnimState('idle')
     const nextIndex = currentProblemIndex + 1
 
     if (nextIndex >= ALGEBRA_PROBLEMS.length) {
       setPhase('complete')
-      addDotMessage(
-        "we did it!! all five!! I actually understand equations now — not just the steps, the WHY. I already have ideas for my drawing program... maybe I can use this to make perfect spirals!! thank you for teaching me 🐢✨",
-      )
+      addDotMessage(COMPLETE_MESSAGE)
     } else {
       setCurrentProblemIndex(nextIndex)
       setPhase('core-teach')
@@ -259,8 +349,12 @@ export function DotProvider({ children }: { children: ReactNode }) {
         isStreaming,
         streamBuffer,
         canTriggerWatchMe,
+        notebookOpen,
+        notebookContent,
+        notebookBuffer,
         sendMessage,
         triggerWatchMe,
+        closeNotebook,
         proceedAfterWatchMe,
       }}
     >

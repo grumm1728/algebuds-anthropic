@@ -36,7 +36,7 @@ function Chalkboard() {
     <div
       onClick={handleClick}
       className={cn(
-        'mx-auto w-[92%] rounded-t-sm bg-[#2d5a27] px-6 pt-6 pb-10 text-center shadow-inner relative',
+        'w-[58%] ml-[18%] rounded-t-sm bg-[#2d5a27] px-6 pt-6 pb-10 text-center shadow-inner relative',
         clickable &&
           'cursor-pointer ring-2 ring-yellow-400 ring-offset-2 hover:bg-[#3a7a33] transition-colors',
       )}
@@ -172,41 +172,26 @@ function ClassroomScene() {
       {/* Wall — taller to accommodate bigger chalkboard + wall details */}
       <div className="h-[56%] bg-[#d4b896] relative flex flex-col items-center justify-center pb-4">
 
-        {/* Door — left wall, sits at the floor line */}
-        <div className="absolute bottom-0 left-6">
-          <div className="w-14 h-24 rounded-t-md bg-[#8b5e3c] border-2 border-[#6a4428] shadow-md relative overflow-hidden">
-            {/* Raised panel */}
-            <div className="absolute inset-2 bottom-5 border border-[#6a4428]/35 rounded-sm" />
-            {/* Lower panel */}
-            <div className="absolute left-2 right-2 bottom-2 h-3 border border-[#6a4428]/35 rounded-sm" />
+        {/* Door — bottom-left */}
+        <div className="absolute bottom-0 left-4">
+          <div className="w-14 h-28 rounded-t-md bg-[#8b5e3c] border-2 border-[#6a4428] shadow-md relative overflow-hidden">
+            {/* Upper raised panel */}
+            <div className="absolute inset-2 bottom-[52%] border border-[#6a4428]/35 rounded-sm" />
+            {/* Lower raised panel */}
+            <div className="absolute left-2 right-2 top-[51%] bottom-6 border border-[#6a4428]/35 rounded-sm" />
             {/* Handle */}
-            <div className="absolute right-2 top-[45%] flex flex-col items-center">
+            <div className="absolute right-2.5 top-[44%] flex flex-col items-center">
               <div className="w-1 h-4 rounded-full bg-[#c8a030] shadow-sm" />
-              <div className="w-2.5 h-[3px] bg-[#c8a030] rounded mt-0.5" />
+              <div className="w-3 h-[3px] bg-[#c8a030] rounded mt-0.5" />
             </div>
-            {/* Door hinge marks */}
-            <div className="absolute left-1.5 top-3 w-1 h-1.5 rounded-sm bg-[#c8a030]/60" />
-            <div className="absolute left-1.5 bottom-6 w-1 h-1.5 rounded-sm bg-[#c8a030]/60" />
+            {/* Hinges */}
+            <div className="absolute left-1.5 top-3 w-1.5 h-2 rounded-sm bg-[#c8a030]/60" />
+            <div className="absolute left-1.5 bottom-7 w-1.5 h-2 rounded-sm bg-[#c8a030]/60" />
           </div>
         </div>
 
-        {/* Window — top-right corner, larger */}
-        <div className="absolute top-3 right-3 w-28 h-22 rounded-sm border-[3px] border-[#8b6914]/50 shadow-md overflow-hidden">
-          {/* Sky */}
-          <div className="absolute inset-0 bg-[#c8e8f8]" />
-          {/* Window cross bars */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="absolute w-full h-[3px] bg-[#8b6914]/40" />
-            <div className="absolute h-full w-[3px] bg-[#8b6914]/40" />
-          </div>
-          {/* Light glare */}
-          <div className="absolute top-1.5 left-2 w-4 h-2.5 bg-white/50 rounded-sm" />
-          {/* Sill */}
-          <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-[#8b6914]/30" />
-        </div>
-
-        {/* Clock — centered at top of wall */}
-        <div className="absolute top-2 left-1/2 -translate-x-1/2 w-10 h-10 rounded-full bg-[#f5efe0] border-2 border-[#8b6914]/50 shadow-sm">
+        {/* Clock — top-right */}
+        <div className="absolute top-4 right-6 w-12 h-12 rounded-full bg-[#f5efe0] border-2 border-[#8b6914]/50 shadow-sm">
           {/* Hour markers */}
           {[0, 60, 120, 180, 240, 300].map((deg) => (
             <div
@@ -231,6 +216,20 @@ function ClassroomScene() {
           />
           {/* Center dot */}
           <div className="absolute top-1/2 left-1/2 w-1.5 h-1.5 rounded-full bg-[#3a2a0a]" style={{ transform: 'translate(-50%, -50%)' }} />
+        </div>
+
+        {/* Window — right side, below the clock */}
+        <div className="absolute top-20 right-4 w-24 h-24 rounded-sm border-[3px] border-[#8b6914]/50 shadow-md overflow-hidden">
+          <div className="absolute inset-0 bg-[#c8e8f8]" />
+          {/* 2×2 panes */}
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute top-1/2 left-0 right-0 h-[3px] bg-[#8b6914]/40 -translate-y-1/2" />
+            <div className="absolute left-1/2 top-0 bottom-0 w-[3px] bg-[#8b6914]/40 -translate-x-1/2" />
+          </div>
+          {/* Glare */}
+          <div className="absolute top-2 left-2 w-5 h-3 bg-white/50 rounded-sm" />
+          {/* Sill */}
+          <div className="absolute bottom-0 left-0 right-0 h-2 bg-[#8b6914]/30" />
         </div>
 
         <Chalkboard />

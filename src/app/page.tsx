@@ -223,39 +223,40 @@ function HomeworkPage() {
 
             {/* Dot's working area */}
             {line.state !== 'hidden' && (
-              <div
-                className="pl-4 flex items-baseline gap-6"
-                style={{ fontFamily: 'var(--font-handwriting)' }}
-              >
-                {/* Scratch work — small, off to the side */}
-                <span className="text-base text-[#6a5a3a]/70 italic">
-                  {line.scratchWork}
-                </span>
-
-                {/* Final answer — big */}
-                <span
-                  className={cn(
-                    'text-3xl font-semibold leading-none transition-all',
-                    line.state === 'written' && line.isCorrect && 'text-[#2d5a27]',
-                    line.state === 'written' && !line.isCorrect && 'text-[#3a2a0a]',
-                    line.state === 'marked' && 'text-red-500',
-                    line.state === 'corrected' && 'line-through text-red-400',
+              <div className="flex items-baseline gap-4 pl-1">
+                {/* Red dot marker — consistent left position, teacher's marking */}
+                <span className="w-5 shrink-0 text-center">
+                  {(line.state === 'marked' || line.state === 'corrected') && (
+                    <span className="text-red-500 text-lg leading-none">●</span>
                   )}
-                >
-                  {line.dotAnswer}
                 </span>
 
-                {/* Red dot for wrong */}
-                {line.state === 'marked' && (
-                  <span className="text-red-500 text-xl leading-none">●</span>
-                )}
-
-                {/* Correction */}
-                {line.state === 'corrected' && (
-                  <span className="text-3xl font-semibold text-[#2d5a27]">
-                    {line.correctAnswer}
+                <div
+                  className="flex items-baseline gap-5"
+                  style={{ fontFamily: 'var(--font-handwriting)' }}
+                >
+                  {/* Scratch work — small blue, informal */}
+                  <span className="text-base text-[#2e5cb8]/60 italic">
+                    {line.scratchWork}
                   </span>
-                )}
+
+                  {/* Final answer — big blue, always Dot's ink */}
+                  <span
+                    className={cn(
+                      'text-3xl font-semibold leading-none text-[#2e5cb8] transition-all',
+                      line.state === 'corrected' && 'line-through opacity-60',
+                    )}
+                  >
+                    {line.dotAnswer}
+                  </span>
+
+                  {/* Correction — new answer in blue */}
+                  {line.state === 'corrected' && (
+                    <span className="text-3xl font-semibold text-[#2e5cb8]">
+                      {line.correctAnswer}
+                    </span>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -289,26 +290,31 @@ function AlgebraPage() {
         {algebraLines.map((line) => (
           <div key={line.id} className="transition-all duration-300">
             {line.style === 'equation' ? (
-              /* Printed equation */
+              /* Printed equation — formal font */
               <p className="font-serif text-2xl font-bold text-[#3a2a0a] pb-3 border-b-2 border-[#3a2a0a]/20">
                 {line.text}
               </p>
             ) : (
-              /* Dot's work — handwriting font */
-              <p
-                className={cn(
-                  'pl-2',
-                  line.style === 'wrong-attempt' && 'text-red-500 text-2xl',
-                  line.style === 'step' && 'text-[#3a6a4a] text-xl',
-                  line.style === 'result' && 'text-[#2d5a27] text-2xl font-semibold',
-                )}
-                style={{ fontFamily: 'var(--font-handwriting)' }}
-              >
-                {line.style === 'wrong-attempt' && <span className="mr-2 text-red-400">✗</span>}
-                {line.style === 'step' && <span className="mr-2 text-[#4a9e6b]">→</span>}
-                {line.style === 'result' && <span className="mr-2 text-[#2d5a27]">✓</span>}
-                {line.text}
-              </p>
+              /* Dot's work — handwriting font, always blue ink */
+              <div className="flex items-baseline gap-3">
+                {/* Red dot in consistent margin position for wrong attempts */}
+                <span className="w-5 shrink-0 text-center text-base leading-none">
+                  {line.style === 'wrong-attempt' && (
+                    <span className="text-red-500">●</span>
+                  )}
+                </span>
+                <p
+                  className={cn(
+                    'text-[#2e5cb8]',
+                    line.style === 'wrong-attempt' && 'text-2xl opacity-70',
+                    line.style === 'step' && 'text-xl',
+                    line.style === 'result' && 'text-2xl font-semibold',
+                  )}
+                  style={{ fontFamily: 'var(--font-handwriting)' }}
+                >
+                  {line.text}
+                </p>
+              </div>
             )}
           </div>
         ))}
@@ -494,14 +500,33 @@ function StreamingBubble({ text }: { text: string }) {
   )
 }
 
+function TypingBubble() {
+  return (
+    <div className="flex gap-2 px-3 justify-start">
+      <DotAvatar state="thinking" size="sm" className="mt-1 shrink-0" />
+      <div className="rounded-2xl rounded-tl-sm bg-white px-3 py-2 shadow-sm border border-[#e8d5a3]">
+        <span className="flex gap-1 items-center h-5">
+          {[0, 150, 300].map((d) => (
+            <span
+              key={d}
+              className="size-1.5 rounded-full bg-[#8b6914]/45 animate-bounce"
+              style={{ animationDelay: `${d}ms` }}
+            />
+          ))}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 function ChatFeed() {
-  const { messages, isStreaming, streamBuffer } = useDotStore()
+  const { messages, isStreaming, streamBuffer, dotIsTyping } = useDotStore()
   const bottomRef = useRef<HTMLDivElement>(null)
   const lastDotIdx = messages.reduce((acc, m, i) => (m.sender === 'dot' ? i : acc), -1)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, streamBuffer])
+  }, [messages, streamBuffer, dotIsTyping])
 
   return (
     <div className="scroll-area flex-1 overflow-y-auto py-3 space-y-2.5 min-h-0">
@@ -514,6 +539,7 @@ function ChatFeed() {
         />
       ))}
       {isStreaming && <StreamingBubble text={streamBuffer} />}
+      {dotIsTyping && !isStreaming && <TypingBubble />}
       <div ref={bottomRef} />
     </div>
   )

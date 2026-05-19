@@ -124,17 +124,47 @@ export const ALGEBRA_PROBLEMS: AlgebraProblem[] = [
   },
 ]
 
-// ── Onboarding homework (8 problems, 3 wrong — the carrying ones) ─────────────
+// ── Onboarding homework (4 problems, 3 wrong — the carrying ones) ─────────────
+// scratchWork shows Dot's working-out notes (written small, in handwriting font)
+// dotAnswer is her final answer (written big, in handwriting font)
 
 export const INITIAL_HOMEWORK: HomeworkLine[] = [
-  { id: 'h1', problem: '33 + 5',  dotAnswer: '38', correctAnswer: '38', isCorrect: true,  state: 'hidden' },
-  { id: 'h2', problem: '3 + 5',   dotAnswer: '8',  correctAnswer: '8',  isCorrect: true,  state: 'hidden' },
-  { id: 'h3', problem: '37 + 15', dotAnswer: '42', correctAnswer: '52', isCorrect: false, state: 'hidden' },
-  { id: 'h4', problem: '7 + 5',   dotAnswer: '12', correctAnswer: '12', isCorrect: true,  state: 'hidden' },
-  { id: 'h5', problem: '28 + 23', dotAnswer: '41', correctAnswer: '51', isCorrect: false, state: 'hidden' },
-  { id: 'h6', problem: '8 + 3',   dotAnswer: '11', correctAnswer: '11', isCorrect: true,  state: 'hidden' },
-  { id: 'h7', problem: '46 + 17', dotAnswer: '53', correctAnswer: '63', isCorrect: false, state: 'hidden' },
-  { id: 'h8', problem: '6 + 7',   dotAnswer: '13', correctAnswer: '13', isCorrect: true,  state: 'hidden' },
+  {
+    id: 'h1',
+    given: '33 + 5',
+    scratchWork: '3 + 5 = 8',
+    dotAnswer: '38',
+    correctAnswer: '38',
+    isCorrect: true,
+    state: 'hidden',
+  },
+  {
+    id: 'h2',
+    given: '37 + 15',
+    scratchWork: '7 + 5 = 12',
+    dotAnswer: '42',
+    correctAnswer: '52',
+    isCorrect: false,
+    state: 'hidden',
+  },
+  {
+    id: 'h3',
+    given: '28 + 23',
+    scratchWork: '8 + 3 = 11',
+    dotAnswer: '41',
+    correctAnswer: '51',
+    isCorrect: false,
+    state: 'hidden',
+  },
+  {
+    id: 'h4',
+    given: '46 + 17',
+    scratchWork: '6 + 7 = 13',
+    dotAnswer: '53',
+    correctAnswer: '63',
+    isCorrect: false,
+    state: 'hidden',
+  },
 ]
 
 // ── Quiz sheet (scripted — reflects partial teaching) ─────────────────────────

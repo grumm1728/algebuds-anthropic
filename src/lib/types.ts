@@ -53,10 +53,12 @@ export type AlgebraProblem = {
 }
 
 // ── Homework page (onboarding left page) ──────────────────────────────────────
+// Each entry is one printed problem + the work Dot shows below it
 export type HomeworkLine = {
   id: string
-  problem: string
-  dotAnswer: string
+  given: string         // printed problem text e.g. "33 + 5"
+  scratchWork: string   // Dot's working notes e.g. "3 + 5 = 8"
+  dotAnswer: string     // Dot's final answer e.g. "38"
   correctAnswer: string
   isCorrect: boolean
   // hidden → written → marked → corrected

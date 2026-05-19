@@ -182,52 +182,81 @@ function ClassroomScene() {
 }
 
 // ── Homework page (onboarding left page) ──────────────────────────────────────
+// Two-font system:
+//   • Given problems: printed (serif, formal)
+//   • Dot's work: handwriting (Caveat, informal)
 
 function HomeworkPage() {
   const { homeworkLines, phase } = useDotStore()
   const hasStar = phase === 'onboarding-done' || phase === 'core-intro'
 
   return (
-    <div className="flex flex-col h-full p-5 font-mono overflow-y-auto">
-      <div className="flex items-start justify-between mb-4">
+    <div className="flex flex-col h-full p-6 overflow-y-auto">
+      {/* Header — printed style */}
+      <div className="flex items-start justify-between mb-6">
         <div>
-          <p className="text-[10px] text-[#8b6914]/50 mb-0.5">name: Dot 🐢</p>
-          <p className="text-sm font-bold text-[#3a2a0a]">Addition Homework</p>
+          <p className="text-xs text-[#8b6914]/45 mb-0.5 font-sans tracking-wide uppercase">
+            name: Dot
+          </p>
+          <p className="text-base font-bold text-[#3a2a0a] font-serif tracking-tight">
+            Addition Homework
+          </p>
         </div>
-        {hasStar && <span className="text-3xl">⭐</span>}
+        {hasStar && <span className="text-4xl leading-none">⭐</span>}
       </div>
 
-      <div className="space-y-2.5">
+      {/* Problems */}
+      <div className="space-y-0 divide-y divide-[#b8d4e8]/50">
         {homeworkLines.map((line) => (
           <div
             key={line.id}
             className={cn(
-              'flex items-center gap-3 pb-2 border-b border-[#b8d4e8]/40 transition-all duration-500',
-              line.state === 'hidden' ? 'opacity-0 h-0 overflow-hidden pb-0 border-0' : 'opacity-100',
+              'py-5 transition-all duration-500',
+              line.state === 'hidden' && 'opacity-0',
+              line.state !== 'hidden' && 'opacity-100',
             )}
           >
-            <span className="text-sm text-[#3a2a0a] w-24 shrink-0">{line.problem} =</span>
+            {/* Printed problem */}
+            <p className="font-serif text-lg text-[#3a2a0a] tracking-wide mb-3">
+              {line.given} = <span className="inline-block w-12 border-b-2 border-[#3a2a0a]/40" />
+            </p>
 
+            {/* Dot's working area */}
             {line.state !== 'hidden' && (
-              <span
-                className={cn(
-                  'text-sm font-semibold',
-                  line.state === 'marked' && 'text-red-600',
-                  line.state === 'corrected' && 'line-through text-red-400',
-                  line.state === 'written' && line.isCorrect && 'text-[#2d5a27]',
-                  line.state === 'written' && !line.isCorrect && 'text-[#3a2a0a]',
-                )}
+              <div
+                className="pl-4 flex items-baseline gap-6"
+                style={{ fontFamily: 'var(--font-handwriting)' }}
               >
-                {line.dotAnswer}
-              </span>
-            )}
+                {/* Scratch work — small, off to the side */}
+                <span className="text-base text-[#6a5a3a]/70 italic">
+                  {line.scratchWork}
+                </span>
 
-            {line.state === 'marked' && (
-              <span className="text-red-500 text-base leading-none">●</span>
-            )}
+                {/* Final answer — big */}
+                <span
+                  className={cn(
+                    'text-3xl font-semibold leading-none transition-all',
+                    line.state === 'written' && line.isCorrect && 'text-[#2d5a27]',
+                    line.state === 'written' && !line.isCorrect && 'text-[#3a2a0a]',
+                    line.state === 'marked' && 'text-red-500',
+                    line.state === 'corrected' && 'line-through text-red-400',
+                  )}
+                >
+                  {line.dotAnswer}
+                </span>
 
-            {line.state === 'corrected' && (
-              <span className="text-[#2d5a27] font-bold text-sm">→ {line.correctAnswer}</span>
+                {/* Red dot for wrong */}
+                {line.state === 'marked' && (
+                  <span className="text-red-500 text-xl leading-none">●</span>
+                )}
+
+                {/* Correction */}
+                {line.state === 'corrected' && (
+                  <span className="text-3xl font-semibold text-[#2d5a27]">
+                    {line.correctAnswer}
+                  </span>
+                )}
+              </div>
             )}
           </div>
         ))}
@@ -245,36 +274,47 @@ function AlgebraPage() {
     : 0
 
   return (
-    <div className="flex flex-col h-full p-5 font-mono overflow-y-auto">
-      <div className="mb-4">
-        <p className="text-[10px] text-[#8b6914]/50 mb-0.5">name: Dot 🐢</p>
-        <p className="text-sm font-bold text-[#3a2a0a]">
+    <div className="flex flex-col h-full p-6 overflow-y-auto">
+      {/* Header — printed style */}
+      <div className="mb-6">
+        <p className="text-xs text-[#8b6914]/45 mb-0.5 font-sans tracking-wide uppercase">
+          name: Dot
+        </p>
+        <p className="text-base font-bold text-[#3a2a0a] font-serif tracking-tight">
           Solving Equations — Problem {idx + 1}
         </p>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-4">
         {algebraLines.map((line) => (
-          <div
-            key={line.id}
-            className={cn(
-              'pb-2 border-b border-[#b8d4e8]/35 transition-all duration-300',
-              line.style === 'equation' &&
-                'text-lg font-bold text-[#3a2a0a] border-[#b8d4e8]/70',
-              line.style === 'wrong-attempt' && 'text-base text-red-500',
-              line.style === 'step' && 'text-sm text-[#3a6a4a] pl-3',
-              line.style === 'result' && 'text-base font-bold text-[#2d5a27]',
+          <div key={line.id} className="transition-all duration-300">
+            {line.style === 'equation' ? (
+              /* Printed equation */
+              <p className="font-serif text-2xl font-bold text-[#3a2a0a] pb-3 border-b-2 border-[#3a2a0a]/20">
+                {line.text}
+              </p>
+            ) : (
+              /* Dot's work — handwriting font */
+              <p
+                className={cn(
+                  'pl-2',
+                  line.style === 'wrong-attempt' && 'text-red-500 text-2xl',
+                  line.style === 'step' && 'text-[#3a6a4a] text-xl',
+                  line.style === 'result' && 'text-[#2d5a27] text-2xl font-semibold',
+                )}
+                style={{ fontFamily: 'var(--font-handwriting)' }}
+              >
+                {line.style === 'wrong-attempt' && <span className="mr-2 text-red-400">✗</span>}
+                {line.style === 'step' && <span className="mr-2 text-[#4a9e6b]">→</span>}
+                {line.style === 'result' && <span className="mr-2 text-[#2d5a27]">✓</span>}
+                {line.text}
+              </p>
             )}
-          >
-            {line.style === 'wrong-attempt' && <span className="text-red-400 mr-2">✗</span>}
-            {line.style === 'step' && <span className="text-[#4a9e6b] mr-2">→</span>}
-            {line.style === 'result' && <span className="text-[#2d5a27] mr-2">✓</span>}
-            {line.text}
           </div>
         ))}
 
         {phase === 'core-writing' && algebraLines.length <= 1 && (
-          <div className="flex gap-1 pt-3">
+          <div className="flex gap-1 pt-4">
             {[0, 150, 300].map((d) => (
               <div
                 key={d}

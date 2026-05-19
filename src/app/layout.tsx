@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
+import { Geist, Geist_Mono, Caveat } from 'next/font/google'
 import { DotProvider } from '@/lib/dot-store'
 import './globals.css'
 
@@ -11,6 +11,13 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: '--font-geist-mono',
   subsets: ['latin'],
+})
+
+// Handwriting font for Dot's written work on notebook pages
+const caveat = Caveat({
+  variable: '--font-handwriting',
+  subsets: ['latin'],
+  weight: ['400', '600'],
 })
 
 export const metadata: Metadata = {
@@ -25,7 +32,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} ${caveat.variable} font-sans antialiased`}>
         <DotProvider>{children}</DotProvider>
       </body>
     </html>

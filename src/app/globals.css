@@ -8,6 +8,7 @@
   --font-sans: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
   --font-serif: ui-serif, Georgia, Cambria, 'Times New Roman', serif;
   --font-mono: var(--font-geist-mono), ui-monospace, Menlo, monospace;
+  --font-handwriting: var(--font-handwriting), 'Caveat', cursive;
 
   /* Colors */
   --color-page: #faf9f5;

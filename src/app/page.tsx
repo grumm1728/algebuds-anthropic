@@ -393,26 +393,18 @@ function AlgebraPage() {
                 {line.text}
               </p>
             ) : (
-              /* Dot's work — handwriting font, always blue ink */
-              <div className="flex items-baseline gap-3">
-                {/* Red dot in consistent margin position for wrong attempts */}
-                <span className="w-5 shrink-0 text-center text-base leading-none">
-                  {line.style === 'wrong-attempt' && (
-                    <span className="text-red-500">●</span>
-                  )}
-                </span>
-                <p
-                  className={cn(
-                    'text-[#2e5cb8]',
-                    line.style === 'wrong-attempt' && 'text-2xl opacity-70',
-                    line.style === 'step' && 'text-xl',
-                    line.style === 'result' && 'text-2xl font-semibold',
-                  )}
-                  style={{ fontFamily: 'var(--font-handwriting)' }}
-                >
-                  {line.text}
-                </p>
-              </div>
+              /* Dot's work — handwriting font, always blue ink, no wrong marker */
+              <p
+                className={cn(
+                  'text-[#2e5cb8]',
+                  line.style === 'wrong-attempt' && 'text-2xl opacity-70',
+                  line.style === 'step' && 'text-xl',
+                  line.style === 'result' && 'text-2xl font-semibold',
+                )}
+                style={{ fontFamily: 'var(--font-handwriting)' }}
+              >
+                {line.text}
+              </p>
             )}
           </div>
         ))}

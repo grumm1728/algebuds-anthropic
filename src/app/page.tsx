@@ -632,7 +632,7 @@ function ChatFeed() {
   }, [messages, streamBuffer, dotIsTyping])
 
   return (
-    <div className="scroll-area flex-1 overflow-y-auto py-3 space-y-2.5 min-h-0">
+    <div className="scroll-area absolute inset-0 overflow-y-auto py-3 space-y-2.5">
       {messages.map((msg, i) => (
         <MessageBubble
           key={msg.id}
@@ -644,6 +644,51 @@ function ChatFeed() {
       {isStreaming && <StreamingBubble text={displayBuffer} />}
       {dotIsTyping && !isStreaming && <TypingBubble />}
       <div ref={bottomRef} />
+    </div>
+  )
+}
+
+// ── Onboarding guide popover ──────────────────────────────────────────────────
+
+function OnboardingGuide() {
+  const { messages } = useDotStore()
+  const [dismissed, setDismissed] = useState(false)
+
+  // Disappears once the student has sent anything, or on tap
+  const studentHasReplied = messages.some((m) => m.sender === 'student')
+  if (dismissed || studentHasReplied) return null
+
+  return (
+    <div
+      className="absolute inset-0 flex flex-col items-center justify-center z-20 px-5"
+      onClick={() => setDismissed(true)}
+    >
+      {/* Light frosted backdrop */}
+      <div className="absolute inset-0 bg-[#faf5ec]/80 backdrop-blur-[2px]" />
+
+      {/* Card */}
+      <div className="relative w-full max-w-xs rounded-2xl bg-white border border-[#c8a96e]/50 shadow-xl px-5 py-5 text-center cursor-pointer select-none">
+        <p className="text-base font-semibold text-[#2a1a0a] leading-snug mb-2">
+          Help Dot learn by typing explanations
+        </p>
+        <p className="text-xs text-[#5a4a2e]/75 leading-relaxed">
+          Dot got some homework wrong. Pick a reply below to explain what she missed.
+        </p>
+        <p className="mt-3 text-[10px] text-[#8b6914]/50 uppercase tracking-wide">
+          tap to dismiss
+        </p>
+
+        {/* Downward arrow pointing at the chips */}
+        <div
+          className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-0 h-0"
+          style={{
+            borderLeft: '10px solid transparent',
+            borderRight: '10px solid transparent',
+            borderTop: '12px solid white',
+            filter: 'drop-shadow(0 2px 1px rgba(139,105,20,0.15))',
+          }}
+        />
+      </div>
     </div>
   )
 }
@@ -834,7 +879,11 @@ function PhonePanel() {
 
       {chatVisible ? (
         <>
-          <ChatFeed />
+          {/* Relative wrapper so ChatFeed + OnboardingGuide share the same space */}
+          <div className="relative flex-1 min-h-0 overflow-hidden">
+            <ChatFeed />
+            {phase === 'onboarding-teach' && <OnboardingGuide />}
+          </div>
           <InputBar />
         </>
       ) : (

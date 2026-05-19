@@ -3,8 +3,6 @@ import { buildEvaluatorPrompt } from '@/lib/dot-prompt'
 import type { KnowledgeState, AlgebraProblem, EvaluationResult } from '@/lib/types'
 import { ALL_MISCONCEPTIONS, ALL_GAPS } from '@/lib/problems'
 
-export const runtime = 'edge'
-
 const apiKey = process.env.ANTHROPIC_API_KEY
 
 export async function POST(req: Request) {

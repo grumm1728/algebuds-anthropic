@@ -2,8 +2,6 @@ import Anthropic from '@anthropic-ai/sdk'
 import { buildDotSystemPrompt } from '@/lib/dot-prompt'
 import type { KnowledgeState, SessionPhase, AlgebraProblem } from '@/lib/types'
 
-export const runtime = 'edge'
-
 const apiKey = process.env.ANTHROPIC_API_KEY
 
 export async function POST(req: Request) {

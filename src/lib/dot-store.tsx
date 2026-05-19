@@ -266,7 +266,9 @@ export function DotProvider({ children }: { children: ReactNode }) {
       setMessages(nextMessages)
 
       if (phase === 'onboarding-teach') {
-        const newCount = onboardingCount + 1
+        // Conceptual explanation counts as the full 2-exchange threshold on its own
+        const isConceptual = text.toLowerCase().includes('ones into') || text.toLowerCase().includes('ten and')
+        const newCount = isConceptual ? 2 : onboardingCount + 1
         setOnboardingCount(newCount)
         await streamDotResponse(nextMessages, knowledge, 'onboarding-teach', null)
 

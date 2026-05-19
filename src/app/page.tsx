@@ -545,6 +545,56 @@ function ChatFeed() {
   )
 }
 
+// ── Onboarding suggestion chips ───────────────────────────────────────────────
+
+const ONBOARDING_CHIPS = [
+  { id: 'vague',      text: 'carry the 1' },
+  { id: 'conceptual', text: 'you can make 12 ones into 1 ten and 2 ones' },
+] as const
+
+function OnboardingChips() {
+  const { sendMessage, isStreaming, dotIsTyping } = useDotStore()
+  const [usedIds, setUsedIds] = useState<Set<string>>(new Set())
+
+  const busy = isStreaming || dotIsTyping
+  const visibleChips = ONBOARDING_CHIPS.filter((c) => !usedIds.has(c.id))
+
+  function handleChip(chip: (typeof ONBOARDING_CHIPS)[number]) {
+    if (busy) return
+    setUsedIds((prev) => new Set([...prev, chip.id]))
+    sendMessage(chip.text)
+  }
+
+  if (visibleChips.length === 0) return null
+
+  return (
+    <div className="px-3 pb-4 pt-2 shrink-0">
+      <p className="text-[10px] text-[#8b6914]/50 mb-2 text-center tracking-wide uppercase">
+        tap to reply
+      </p>
+      <div className="flex flex-col gap-2">
+        {visibleChips.map((chip) => (
+          <button
+            key={chip.id}
+            onClick={() => handleChip(chip)}
+            disabled={busy}
+            className={cn(
+              'w-full rounded-2xl rounded-tr-sm bg-[#e8d5a3] px-4 py-2.5 text-left text-sm text-[#2a1a0a]',
+              'border border-[#c8a96e]/40 shadow-sm transition-all',
+              'hover:bg-[#dfc990] hover:shadow active:scale-[0.98]',
+              'disabled:opacity-40 disabled:cursor-not-allowed',
+            )}
+          >
+            {chip.text}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Input bar ─────────────────────────────────────────────────────────────────
+
 function InputBar() {
   const { phase, isStreaming, canTriggerQuiz, sendMessage, triggerQuiz, proceedToNext } =
     useDotStore()
@@ -562,6 +612,10 @@ function InputBar() {
   ]
   const isBlocked = blockedPhases.includes(phase)
   const isNext = phase === 'onboarding-done' || phase === 'quiz-graded'
+
+  // Onboarding teach uses chips, not free text
+  if (phase === 'onboarding-teach') return <OnboardingChips />
+
   const canSend = text.trim().length > 0 && !isStreaming && !isBlocked && !isNext
 
   function handleSend() {
@@ -584,7 +638,7 @@ function InputBar() {
           onClick={proceedToNext}
           className="rounded-full bg-[#4a9e6b] px-6 py-2.5 text-sm font-semibold text-white shadow hover:bg-[#3a8a5a] transition active:scale-95"
         >
-          {phase === 'onboarding-done' ? 'Start Algebra →' : 'Continue →'}
+          {phase === 'onboarding-done' ? 'Back to Class →' : 'Continue →'}
         </button>
       </div>
     )
@@ -622,13 +676,7 @@ function InputBar() {
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKey}
-          placeholder={
-            phase.startsWith('onboarding')
-              ? 'Help Dot with the homework…'
-              : phase === 'home'
-                ? 'Chat with Dot…'
-                : 'Teach Dot…'
-          }
+          placeholder={phase === 'home' ? 'Chat with Dot…' : 'Teach Dot…'}
           rows={1}
           disabled={isStreaming}
           className="flex-1 resize-none bg-transparent text-sm text-[#2a1a0a] placeholder:text-[#8b6914]/45 outline-none disabled:opacity-50"

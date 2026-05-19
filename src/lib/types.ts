@@ -1,62 +1,86 @@
-// ── Starter types (kept for existing scaffold compatibility) ──────────────────
+// ── Starter types (kept for scaffold compatibility) ────────────────────────────
 export type Role = 'user' | 'assistant'
+export type Message = { role: Role; content: string }
+export type Chat = { id: string; title: string; messages: Message[] }
+export type Config = { userName: string; thinkingDelay: number; streamSpeed: number }
 
-export type Message = {
-  role: Role
-  content: string
-}
+// ── Session phases ─────────────────────────────────────────────────────────────
+export type SessionPhase =
+  | 'landing'              // A1: classroom only, Dot idle-walks
+  | 'onboarding-writing'   // A3–A4: homework notebook open, answers fill in
+  | 'onboarding-graded'    // A5: red marks appear, Dot sends opening message
+  | 'onboarding-teach'     // A6: teaching conversation
+  | 'onboarding-correct'   // A7: corrections animate, star appears
+  | 'onboarding-done'      // A8: Next button visible
+  | 'core-intro'           // B1: classroom + chat, new notebook on desk
+  | 'core-writing'         // B2: algebra workbook opens, wrong attempt fills in
+  | 'core-teach'           // B3–B6: teaching conversation + corrections
+  | 'core-quiz-prompt'     // B7: "Next: Dot's Quiz" CTA
+  | 'quiz-intro'           // C1: classroom, chalkboard clickable
+  | 'quiz-writing'         // C2–C3: quiz sheet fills in (30s)
+  | 'quiz-graded'          // C4: red marks, Dot reacts
+  | 'home'                 // D1: full home state
 
-export type Chat = {
-  id: string
-  title: string
-  messages: Message[]
-}
-
-export type Config = {
-  userName: string
-  thinkingDelay: number
-  streamSpeed: number
-}
-
-// ── Domain types ───────────────────────────────────────────────────────────────
-
+// ── Dot anim ───────────────────────────────────────────────────────────────────
 export type DotAnimState = 'idle' | 'thinking' | 'celebrating'
 
-/** A wrong mental model Dot currently holds */
+// ── Knowledge state (internal only, never shown to student) ───────────────────
 export type Misconception = {
   id: string
-  description: string       // what Dot wrongly believes
-  triggerCondition: string  // which problem types surface this
+  description: string
+  triggerCondition: string
 }
 
-/** A concept Dot simply doesn't know yet */
 export type ConceptGap = {
   id: string
   concept: string
 }
 
-/** Internal-only — never surfaced to the student UI */
 export type KnowledgeState = {
   misconceptions: Misconception[]
   gaps: ConceptGap[]
-  taughtConcepts: string[]  // accumulated from SU explanations
+  taughtConcepts: string[]
 }
 
+// ── Problems ───────────────────────────────────────────────────────────────────
 export type AlgebraProblem = {
   id: string
   equation: string
   answer: string
   solutionSteps: string[]
-  targetMisconceptions: string[]  // misconception ids this problem exposes
-  targetGaps: string[]            // gap ids this problem requires
+  targetMisconceptions: string[]
+  targetGaps: string[]
 }
 
-export type DotAttempt = {
-  steps: string[]
+// ── Homework page (onboarding left page) ──────────────────────────────────────
+export type HomeworkLine = {
+  id: string
+  problem: string
+  dotAnswer: string
+  correctAnswer: string
   isCorrect: boolean
-  errorDescription?: string  // what Dot got wrong, for the "watch me" moment
+  // hidden → written → marked → corrected
+  state: 'hidden' | 'written' | 'marked' | 'corrected'
 }
 
+// ── Algebra workbook page ─────────────────────────────────────────────────────
+export type WorkLine = {
+  id: string
+  text: string
+  style: 'equation' | 'wrong-attempt' | 'step' | 'result'
+  crossedOut?: boolean
+}
+
+// ── Quiz sheet ─────────────────────────────────────────────────────────────────
+export type QuizItem = {
+  id: string
+  equation: string
+  dotAnswer: string
+  isCorrect: boolean
+  state: 'hidden' | 'writing' | 'done' | 'marked'
+}
+
+// ── Chat ───────────────────────────────────────────────────────────────────────
 export type TeachMessage = {
   id: string
   sender: 'dot' | 'student'
@@ -73,13 +97,12 @@ export type EvaluationResult = {
   followUpQuestion?: string
 }
 
-export type SessionPhase =
-  | 'onboarding-attempt'   // Dot does arithmetic, gets some wrong
-  | 'onboarding-teach'     // SU explains, Dot gets the quick win
-  | 'onboarding-watchme'   // Dot solves correctly, attributes to SU
-  | 'core-teach'           // SU teaching loop for current algebra problem
-  | 'core-watchme'         // Dot attempts the problem after teaching
-  | 'complete'             // All problems done
+// ── Legacy (kept for type compat) ─────────────────────────────────────────────
+export type DotAttempt = {
+  steps: string[]
+  isCorrect: boolean
+  errorDescription?: string
+}
 
 export type TeachingSession = {
   phase: SessionPhase

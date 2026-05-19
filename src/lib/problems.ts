@@ -1,4 +1,4 @@
-import type { AlgebraProblem, Misconception, ConceptGap, KnowledgeState } from './types'
+import type { AlgebraProblem, Misconception, ConceptGap, KnowledgeState, HomeworkLine, QuizItem } from './types'
 
 // ── Misconceptions ─────────────────────────────────────────────────────────────
 // Buggy rules from earlier grades that worked once but break in new contexts
@@ -124,11 +124,33 @@ export const ALGEBRA_PROBLEMS: AlgebraProblem[] = [
   },
 ]
 
-// ── Onboarding arithmetic problems ────────────────────────────────────────────
-// Simple enough for a quick win — Dot just needs minor arithmetic corrections
+// ── Onboarding homework (8 problems, 3 wrong — the carrying ones) ─────────────
 
-export const ONBOARDING_PROBLEMS = [
-  { problem: '37 + 15', correctAnswer: '52', dotAnswer: '42', errorNote: 'forgot to carry the 1' },
-  { problem: '28 + 23', correctAnswer: '51', dotAnswer: '41', errorNote: 'same carry mistake' },
-  { problem: '46 + 17', correctAnswer: '63', dotAnswer: '53', errorNote: 'missed the carry again' },
+export const INITIAL_HOMEWORK: HomeworkLine[] = [
+  { id: 'h1', problem: '33 + 5',  dotAnswer: '38', correctAnswer: '38', isCorrect: true,  state: 'hidden' },
+  { id: 'h2', problem: '3 + 5',   dotAnswer: '8',  correctAnswer: '8',  isCorrect: true,  state: 'hidden' },
+  { id: 'h3', problem: '37 + 15', dotAnswer: '42', correctAnswer: '52', isCorrect: false, state: 'hidden' },
+  { id: 'h4', problem: '7 + 5',   dotAnswer: '12', correctAnswer: '12', isCorrect: true,  state: 'hidden' },
+  { id: 'h5', problem: '28 + 23', dotAnswer: '41', correctAnswer: '51', isCorrect: false, state: 'hidden' },
+  { id: 'h6', problem: '8 + 3',   dotAnswer: '11', correctAnswer: '11', isCorrect: true,  state: 'hidden' },
+  { id: 'h7', problem: '46 + 17', dotAnswer: '53', correctAnswer: '63', isCorrect: false, state: 'hidden' },
+  { id: 'h8', problem: '6 + 7',   dotAnswer: '13', correctAnswer: '13', isCorrect: true,  state: 'hidden' },
+]
+
+// ── Quiz sheet (scripted — reflects partial teaching) ─────────────────────────
+// Dot gets most right but still misses fraction + two-step edge cases
+
+export const INITIAL_QUIZ: QuizItem[] = [
+  { id: 'q1',  equation: 'x + 5 = 20',          dotAnswer: 'x = 15',     isCorrect: true,  state: 'hidden' },
+  { id: 'q2',  equation: 'x + 5 = 11',          dotAnswer: 'x = 6',      isCorrect: true,  state: 'hidden' },
+  { id: 'q3',  equation: '4 + x = 16',          dotAnswer: 'x = 12',     isCorrect: true,  state: 'hidden' },
+  { id: 'q4',  equation: '3x = 18',             dotAnswer: 'x = 6',      isCorrect: true,  state: 'hidden' },
+  { id: 'q5',  equation: '5x = 15',             dotAnswer: 'x = 3',      isCorrect: true,  state: 'hidden' },
+  { id: 'q6',  equation: 'x + 3 = 9',           dotAnswer: 'x = 6',      isCorrect: true,  state: 'hidden' },
+  { id: 'q7',  equation: '2x + 1 = 9',          dotAnswer: 'x = 4',      isCorrect: true,  state: 'hidden' },
+  { id: 'q8',  equation: 'x - 5 = 20',          dotAnswer: 'x = 25',     isCorrect: true,  state: 'hidden' },
+  { id: 'q9',  equation: '2x - 3 = 11',         dotAnswer: 'x = 4',      isCorrect: false, state: 'hidden' },
+  { id: 'q10', equation: '(1/2)x = 15',         dotAnswer: 'x = 7.5',    isCorrect: false, state: 'hidden' },
+  { id: 'q11', equation: '3x - 6 = 18',         dotAnswer: 'x = 2',      isCorrect: false, state: 'hidden' },
+  { id: 'q12', equation: '(1/3)x + 2 = 8',      dotAnswer: 'x = 2',      isCorrect: false, state: 'hidden' },
 ]

@@ -68,31 +68,13 @@ ${taughtLines}`
 
 function phaseContext(phase: SessionPhase, problem: AlgebraProblem | null): string {
   switch (phase) {
-    case 'onboarding-attempt':
-      return `\
-CURRENT SITUATION:
-You just finished a batch of arithmetic homework problems very quickly. \
-You got some of them wrong because you kept forgetting to carry digits when adding. \
-You are cheerfully presenting your work to the student and asking them to help \
-you figure out what went wrong. You do not yet realize your specific error — \
-you just know some answers feel off.`
-
     case 'onboarding-teach':
       return `\
 CURRENT SITUATION:
-The student is helping you understand why you got the arithmetic problems wrong. \
+The student is helping you understand why you got arithmetic problems wrong. \
 You made carrying errors (e.g. 37 + 15 = 42 instead of 52). \
 Accept a vague explanation graciously — this is the student's first win. \
-Once you understand, say something like "oh! the extra ten from the ones column! \
-I kept forgetting that bit." Then say you think you can fix your other mistakes now.`
-
-    case 'onboarding-watchme':
-      return `\
-CURRENT SITUATION:
-The student just helped you understand carrying. Now it is your "watch me" moment. \
-Excitedly work through your wrong problems again, getting them right this time. \
-Explicitly say the student taught you how to do it. \
-Be joyful — this is the payoff moment. Keep it brief but warm.`
+Once you understand, express an "aha!" moment about the carrying. Keep it brief and warm.`
 
     case 'core-teach':
       return problem
@@ -106,32 +88,13 @@ Ask why/how follow-up questions if they give you only procedural steps.
 Do not solve the problem correctly until you have been taught the relevant concepts.`
         : ''
 
-    case 'core-watchme':
-      return problem
-        ? `\
-CURRENT SITUATION:
-The student has been teaching you about ${problem.equation}.
-This is your "watch me" moment — your work will appear in a separate notebook, not the chat.
-Show your work step by step, talking through each step as you go.
-If you now know enough to solve it correctly, do so and celebrate.
-If you were only partially taught, make partial progress and get stuck honestly — \
-do not magically solve the whole thing.
-
-CRITICAL FORMAT INSTRUCTION:
-After your full step-by-step work, end your response with exactly this on its own line:
----PANEL: [one sentence: describe how it went and which strategy you used or where you got stuck]
-
-Example endings:
----PANEL: I used the balance rule you taught me and got x = 7 — I think that's right!
----PANEL: I got partway but got stuck when dividing — I need more help with that part.`
-        : ''
-
-    case 'complete':
+    case 'home':
       return `\
 CURRENT SITUATION:
-You have worked through all the problems with the student's help. \
-Reflect warmly on what you learned and thank them for teaching you. \
-Maybe mention you want to use some of this in your next drawing program.`
+You have completed a quiz and are reflecting on your results. \
+Thank the student warmly and express what you learned. \
+You're curious about the problems you still got wrong and eager to keep learning. \
+Mention you want to use what you've learned in your drawing programs.`
 
     default:
       return ''

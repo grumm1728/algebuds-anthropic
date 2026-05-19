@@ -36,7 +36,7 @@ function Chalkboard() {
     <div
       onClick={handleClick}
       className={cn(
-        'mx-auto w-4/5 rounded-sm bg-[#2d5a27] px-6 py-4 text-center shadow-inner',
+        'mx-auto w-4/5 rounded-t-sm bg-[#2d5a27] px-6 pt-6 pb-10 text-center shadow-inner relative',
         clickable &&
           'cursor-pointer ring-2 ring-yellow-400 ring-offset-2 hover:bg-[#3a7a33] transition-colors',
       )}
@@ -50,6 +50,44 @@ function Chalkboard() {
       {clickable && (
         <p className="mt-1 text-xs text-yellow-300 animate-pulse">click to begin →</p>
       )}
+      {/* Faint prior equations in corners for lived-in feel */}
+      <p className="absolute top-2 left-3 font-mono text-[9px] text-[#c8e6c9]/20 select-none">2x+3=7</p>
+      <p className="absolute top-2 right-3 font-mono text-[9px] text-[#c8e6c9]/20 select-none">y=mx+b</p>
+
+      {/* Chalk tray */}
+      <div className="absolute bottom-0 left-0 right-0 h-5 bg-[#1e3d1a] rounded-b-sm flex items-center gap-2 px-4">
+        {/* Eraser — felt block */}
+        <div className="w-8 h-3 rounded-sm bg-[#e8c4a0] border border-[#c8a070]/50 shadow-sm" />
+        {/* Chalk sticks */}
+        <div className="w-5 h-2.5 rounded-sm bg-white/80 shadow-sm" />
+        <div className="w-4 h-2.5 rounded-sm bg-white/65 shadow-sm" />
+        <div className="w-3 h-2.5 rounded-sm bg-yellow-100/70 shadow-sm" />
+      </div>
+    </div>
+  )
+}
+
+// ── Blue pen lying on a desk ───────────────────────────────────────────────────
+
+function PenOnDesk() {
+  return (
+    <div
+      className="absolute top-2 right-4 flex items-center"
+      style={{ transform: 'rotate(-14deg)' }}
+    >
+      {/* Tip */}
+      <div className="w-2 h-[5px] bg-[#1a3a6a] rounded-l-sm" />
+      {/* Body */}
+      <div className="w-10 h-[5px] bg-[#2563eb]" />
+      {/* Grip band */}
+      <div className="w-1.5 h-[5px] bg-[#1d4ed8]" />
+      {/* Cap */}
+      <div className="w-3 h-[5px] bg-[#1e40af] rounded-r-full" />
+      {/* Clip */}
+      <div
+        className="absolute right-1 w-[2px] h-5 bg-[#1e40af] rounded-full"
+        style={{ top: '-7px' }}
+      />
     </div>
   )
 }
@@ -89,7 +127,6 @@ function NotebookObject({
         {pulse && (
           <div className="absolute -inset-2 rounded border-2 border-yellow-400 animate-ping opacity-60" />
         )}
-
         {/* Spiral binding */}
         <div className="absolute left-0 top-0 bottom-0 w-2 bg-[#c8a96e]/20 border-r border-[#8b6914]/15 flex flex-col justify-around py-1">
           {[0, 1, 2, 3, 4].map((i) => (
@@ -114,11 +151,11 @@ function ClassroomScene() {
   const { phase, openNotebook, helpDot, dotAnimState } = useDotStore()
 
   const dotPosition: Partial<Record<SessionPhase, string>> = {
-    landing: 'bottom-16 left-1/2 -translate-x-1/2',
-    'core-intro': 'bottom-16 left-[28%]',
+    landing: 'bottom-10 left-1/2 -translate-x-1/2',
+    'core-intro': 'bottom-10 left-[28%]',
     'quiz-intro': 'top-[40%] left-1/2 -translate-x-1/2',
-    'core-quiz-prompt': 'bottom-16 left-1/2 -translate-x-1/2',
-    home: 'bottom-16 left-1/2 -translate-x-1/2',
+    'core-quiz-prompt': 'bottom-10 left-1/2 -translate-x-1/2',
+    home: 'bottom-10 left-1/2 -translate-x-1/2',
   }
 
   const leftDesk = (() => {
@@ -137,8 +174,70 @@ function ClassroomScene() {
 
   return (
     <div className="relative flex flex-col h-full overflow-hidden">
-      {/* Wall */}
-      <div className="h-[44%] bg-[#d4b896] flex flex-col items-center justify-center pt-4 pb-6">
+      {/* Wall — taller to accommodate bigger chalkboard + wall details */}
+      <div className="h-[56%] bg-[#d4b896] relative flex flex-col items-center justify-center pb-4">
+
+        {/* Door — left wall, sits at the floor line */}
+        <div className="absolute bottom-0 left-6">
+          <div className="w-14 h-24 rounded-t-md bg-[#8b5e3c] border-2 border-[#6a4428] shadow-md relative overflow-hidden">
+            {/* Raised panel */}
+            <div className="absolute inset-2 bottom-5 border border-[#6a4428]/35 rounded-sm" />
+            {/* Lower panel */}
+            <div className="absolute left-2 right-2 bottom-2 h-3 border border-[#6a4428]/35 rounded-sm" />
+            {/* Handle */}
+            <div className="absolute right-2 top-[45%] flex flex-col items-center">
+              <div className="w-1 h-4 rounded-full bg-[#c8a030] shadow-sm" />
+              <div className="w-2.5 h-[3px] bg-[#c8a030] rounded mt-0.5" />
+            </div>
+            {/* Door hinge marks */}
+            <div className="absolute left-1.5 top-3 w-1 h-1.5 rounded-sm bg-[#c8a030]/60" />
+            <div className="absolute left-1.5 bottom-6 w-1 h-1.5 rounded-sm bg-[#c8a030]/60" />
+          </div>
+        </div>
+
+        {/* Window — right wall */}
+        <div className="absolute top-4 right-5 w-20 h-16 rounded-sm border-[3px] border-[#8b6914]/50 shadow-md overflow-hidden">
+          {/* Sky */}
+          <div className="absolute inset-0 bg-[#c8e8f8]" />
+          {/* Window cross bars */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="absolute w-full h-[3px] bg-[#8b6914]/40" />
+            <div className="absolute h-full w-[3px] bg-[#8b6914]/40" />
+          </div>
+          {/* Light glare */}
+          <div className="absolute top-1.5 left-2 w-4 h-2.5 bg-white/50 rounded-sm" />
+          {/* Sill */}
+          <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-[#8b6914]/30" />
+        </div>
+
+        {/* Clock — above chalkboard, right of center */}
+        <div className="absolute top-3 left-[58%] w-9 h-9 rounded-full bg-[#f5efe0] border-2 border-[#8b6914]/50 shadow-sm">
+          {/* Hour markers */}
+          {[0, 60, 120, 180, 240, 300].map((deg) => (
+            <div
+              key={deg}
+              className="absolute w-[2px] h-1 bg-[#3a2a0a]/40 rounded-full"
+              style={{
+                top: '4px', left: 'calc(50% - 1px)',
+                transformOrigin: '50% calc(100% + 10px)',
+                transform: `rotate(${deg}deg)`,
+              }}
+            />
+          ))}
+          {/* Hour hand ~10 */}
+          <div
+            className="absolute w-[2px] h-3 bg-[#3a2a0a] rounded-full"
+            style={{ bottom: '50%', left: 'calc(50% - 1px)', transformOrigin: '50% 100%', transform: 'rotate(-60deg)' }}
+          />
+          {/* Minute hand ~2 */}
+          <div
+            className="absolute w-[2px] h-3.5 bg-[#3a2a0a] rounded-full"
+            style={{ bottom: '50%', left: 'calc(50% - 1px)', transformOrigin: '50% 100%', transform: 'rotate(60deg)' }}
+          />
+          {/* Center dot */}
+          <div className="absolute top-1/2 left-1/2 w-1.5 h-1.5 rounded-full bg-[#3a2a0a]" style={{ transform: 'translate(-50%, -50%)' }} />
+        </div>
+
         <Chalkboard />
       </div>
 
@@ -154,21 +253,21 @@ function ClassroomScene() {
         }}
       >
         {/* Desks row — centered vertically in the floor */}
-        <div className="absolute top-[18%] left-0 right-0 flex justify-around items-end px-10">
+        <div className="absolute top-[14%] left-0 right-0 flex justify-around items-end px-10">
           {/* Left desk */}
           <div className="flex flex-col items-center gap-2">
             <NotebookObject {...leftDesk} />
-            <div className="w-28 h-9 rounded-sm bg-[#7a4e2a] shadow-md border-b-4 border-[#5a3a1a]" />
+            <div className="relative w-28 h-9 rounded-sm bg-[#7a4e2a] shadow-md border-b-4 border-[#5a3a1a]">
+              {leftDesk.clickable && <PenOnDesk />}
+            </div>
           </div>
 
           {/* Right desk */}
           <div className="flex flex-col items-center gap-2">
-            {rightDesk ? (
-              <NotebookObject {...rightDesk} />
-            ) : (
-              <div className="h-[74px]" />
-            )}
-            <div className="w-28 h-9 rounded-sm bg-[#7a4e2a] shadow-md border-b-4 border-[#5a3a1a]" />
+            {rightDesk ? <NotebookObject {...rightDesk} /> : <div className="h-[74px]" />}
+            <div className="relative w-28 h-9 rounded-sm bg-[#7a4e2a] shadow-md border-b-4 border-[#5a3a1a]">
+              {rightDesk?.clickable && <PenOnDesk />}
+            </div>
           </div>
         </div>
 
@@ -176,7 +275,7 @@ function ClassroomScene() {
         <div
           className={cn(
             'absolute transition-all duration-700',
-            dotPosition[phase] ?? 'bottom-16 left-1/2 -translate-x-1/2',
+            dotPosition[phase] ?? 'bottom-10 left-1/2 -translate-x-1/2',
           )}
         >
           <DotAvatar state={dotAnimState} size="md" />

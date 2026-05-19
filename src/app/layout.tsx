@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
-import { ChatProvider } from '@/lib/chat-store'
-import { AppShell } from './shell'
+import { DotProvider } from '@/lib/dot-store'
 import './globals.css'
 
 const geistSans = Geist({
@@ -15,8 +14,8 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'Claude Takehome',
-  description: 'A Claude.ai-style chat shell',
+  title: 'Dot — Learn by Teaching',
+  description: 'Teach a turtle robot algebra and watch it learn',
 }
 
 export default function RootLayout({
@@ -27,9 +26,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
-        <ChatProvider>
-          <AppShell>{children}</AppShell>
-        </ChatProvider>
+        <DotProvider>{children}</DotProvider>
       </body>
     </html>
   )

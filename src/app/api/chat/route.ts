@@ -1,4 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { buildDotSystemPrompt } from '@/lib/dot-prompt'
+import type { KnowledgeState, SessionPhase, AlgebraProblem } from '@/lib/types'
 
 export const runtime = 'edge'
 
@@ -9,7 +11,21 @@ export async function POST(req: Request) {
     return new Response('ANTHROPIC_API_KEY not configured', { status: 501 })
   }
 
-  const { model, messages } = await req.json()
+  const {
+    model = 'claude-sonnet-4-5',
+    messages,
+    knowledge,
+    phase,
+    problem = null,
+  }: {
+    model?: string
+    messages: { role: 'user' | 'assistant'; content: string }[]
+    knowledge: KnowledgeState
+    phase: SessionPhase
+    problem?: AlgebraProblem | null
+  } = await req.json()
+
+  const systemPrompt = buildDotSystemPrompt(knowledge, phase, problem)
   const client = new Anthropic({ apiKey })
 
   const stream = new ReadableStream({
@@ -17,7 +33,8 @@ export async function POST(req: Request) {
       const encoder = new TextEncoder()
       const messageStream = client.messages.stream({
         model,
-        max_tokens: 8096,
+        max_tokens: 512,
+        system: systemPrompt,
         messages,
       })
 

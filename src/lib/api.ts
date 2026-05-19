@@ -33,7 +33,7 @@ export async function streamChat(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: model.id,
-      messages: history.map((m) => ({ role: m.role, content: m.text })),
+      messages: history.map((m) => ({ role: m.role, content: m.content })),
     }),
     signal,
   })

@@ -68,7 +68,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const commitAssistant = useCallback((chatId: string, text: string) => {
     setChats((cs) =>
       cs.map((c) =>
-        c.id === chatId ? { ...c, messages: [...c.messages, { role: 'assistant', text }] } : c,
+        c.id === chatId ? { ...c, messages: [...c.messages, { role: 'assistant', content: text }] } : c,
       ),
     )
   }, [])
@@ -123,7 +123,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const createChat = useCallback(
     (text: string) => {
       const id = 'c' + Date.now()
-      const userMsg: Message = { role: 'user', text }
+      const userMsg: Message = { role: 'user', content: text }
       const chat: Chat = { id, title: makeTitle(text), messages: [userMsg] }
       setChats((cs) => [chat, ...cs])
       runCompletion(id, [userMsg])
@@ -145,7 +145,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const sendReply = useCallback(
     (chatId: string, text: string) => {
-      const userMsg: Message = { role: 'user', text }
+      const userMsg: Message = { role: 'user', content: text }
       let nextHistory: Message[] = []
 
       setChats((cs) =>

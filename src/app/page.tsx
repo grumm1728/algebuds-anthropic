@@ -72,18 +72,24 @@ function NotebookObject({
       onClick={clickable ? onClick : undefined}
       className={cn(
         'flex flex-col items-center gap-1.5 select-none transition-all',
-        clickable ? 'cursor-pointer hover:scale-105' : 'cursor-default',
+        clickable ? 'cursor-pointer hover:scale-110' : 'cursor-default',
         dimmed && 'opacity-40',
+        pulse && 'animate-bounce',
       )}
     >
       <div
         className={cn(
-          'relative w-14 h-16 rounded-sm border-2 bg-[#fffef5] shadow-sm transition-all',
-          clickable
-            ? 'border-yellow-400 shadow-lg ring-2 ring-yellow-300/40'
-            : 'border-[#8b6914]/30',
+          'relative w-14 h-16 rounded-sm border-2 bg-[#fffef5] transition-all',
+          clickable && !pulse && 'border-yellow-400 shadow-lg ring-2 ring-yellow-300/40',
+          clickable && pulse && 'border-yellow-400 shadow-[0_0_18px_4px_rgba(250,204,21,0.55)]',
+          !clickable && 'border-[#8b6914]/30 shadow-sm',
         )}
       >
+        {/* Ping ring — ripples outward when notebook needs opening */}
+        {pulse && (
+          <div className="absolute -inset-2 rounded border-2 border-yellow-400 animate-ping opacity-60" />
+        )}
+
         {/* Spiral binding */}
         <div className="absolute left-0 top-0 bottom-0 w-2 bg-[#c8a96e]/20 border-r border-[#8b6914]/15 flex flex-col justify-around py-1">
           {[0, 1, 2, 3, 4].map((i) => (
@@ -96,11 +102,10 @@ function NotebookObject({
             <div key={i} className="h-px bg-[#b8d4e8]/60" />
           ))}
         </div>
-        {pulse && (
-          <div className="absolute inset-0 rounded-sm bg-yellow-300/20 animate-pulse" />
-        )}
       </div>
-      <p className="text-[10px] font-medium text-[#5a4a2e]">{label}</p>
+      <p className={cn('text-[10px] font-medium', pulse ? 'text-yellow-700 font-semibold' : 'text-[#5a4a2e]')}>
+        {label}
+      </p>
     </div>
   )
 }
@@ -148,8 +153,8 @@ function ClassroomScene() {
             'repeating-linear-gradient(90deg, transparent, transparent 47px, rgba(139,105,20,0.07) 47px, rgba(139,105,20,0.07) 48px)',
         }}
       >
-        {/* Desks row */}
-        <div className="absolute bottom-20 left-0 right-0 flex justify-around items-end px-10">
+        {/* Desks row — centered vertically in the floor */}
+        <div className="absolute top-[18%] left-0 right-0 flex justify-around items-end px-10">
           {/* Left desk */}
           <div className="flex flex-col items-center gap-2">
             <NotebookObject {...leftDesk} />

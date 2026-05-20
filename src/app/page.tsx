@@ -367,10 +367,13 @@ function HomeworkPage() {
 // ── Algebra workbook page ─────────────────────────────────────────────────────
 
 function AlgebraPage() {
-  const { algebraLines, currentProblem, phase } = useDotStore()
-  const idx = currentProblem
-    ? ['p1', 'p2', 'p3', 'p4', 'p5'].indexOf(currentProblem.id)
-    : 0
+  const { algebraLines, phase } = useDotStore()
+  const bottomRef = useRef<HTMLDivElement>(null)
+
+  // Scroll to bottom whenever new lines appear
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [algebraLines])
 
   return (
     <div className="flex flex-col h-full p-6 overflow-y-auto">
@@ -380,14 +383,17 @@ function AlgebraPage() {
           name: Dot
         </p>
         <p className="text-base font-bold text-[#3a2a0a] font-serif tracking-tight">
-          Solving Equations — Problem {idx + 1}
+          Solving Equations
         </p>
       </div>
 
       <div className="space-y-4">
         {algebraLines.map((line) => (
           <div key={line.id} className="transition-all duration-300">
-            {line.style === 'equation' ? (
+            {line.style === 'divider' ? (
+              /* Problem separator — a faint ruled gap so old work scrolls up naturally */
+              <div className="my-6 border-t border-dashed border-[#8b6914]/25" />
+            ) : line.style === 'equation' ? (
               /* Printed equation — formal font */
               <p className="font-serif text-2xl font-bold text-[#3a2a0a] pb-3 border-b-2 border-[#3a2a0a]/20">
                 {line.text}
@@ -421,6 +427,7 @@ function AlgebraPage() {
           </div>
         )}
       </div>
+      <div ref={bottomRef} />
     </div>
   )
 }
@@ -616,7 +623,7 @@ function ChatFeed() {
 
   // Only show text up to the first ||| so multi-message responses never
   // flash as one big blob before being split into separate bubbles.
-  const displayBuffer = streamBuffer.split('|||')[0].trimEnd()
+  const displayBuffer = streamBuffer.split('|||')[0].replace(/\[WORK:[^\]]*/g, '').trimEnd()
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -735,9 +742,17 @@ function OnboardingChips() {
 // ── Input bar ─────────────────────────────────────────────────────────────────
 
 function InputBar() {
-  const { phase, isStreaming, canTriggerQuiz, sendMessage, triggerQuiz, proceedToNext } =
+  const { phase, isStreaming, dotIsTyping, canTriggerQuiz, sendMessage, triggerQuiz, proceedToNext } =
     useDotStore()
   const [text, setText] = useState('')
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Re-focus textarea once Dot finishes her full reply (streaming + staggered segments done)
+  useEffect(() => {
+    if (!isStreaming && !dotIsTyping) {
+      textareaRef.current?.focus()
+    }
+  }, [isStreaming, dotIsTyping])
 
   const blockedPhases: SessionPhase[] = [
     'landing',
@@ -761,6 +776,7 @@ function InputBar() {
     if (!canSend) return
     sendMessage(text.trim())
     setText('')
+    textareaRef.current?.focus()
   }
 
   function handleKey(e: React.KeyboardEvent) {
@@ -812,6 +828,7 @@ function InputBar() {
       )}
       <div className="flex gap-2 items-end rounded-2xl border border-[#c8a96e]/45 bg-white px-3 py-2.5 shadow-sm">
         <textarea
+          ref={textareaRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKey}
@@ -891,6 +908,25 @@ function PhonePanel() {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
+function DevToolbar() {
+  const { phase, skipOnboarding } = useDotStore()
+  const isOnboarding = phase === 'landing' || phase.startsWith('onboarding')
+  if (!isOnboarding) return null
+  return (
+    <div className="fixed bottom-3 left-1/2 -translate-x-1/2 z-50">
+      <button
+        onClick={skipOnboarding}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono font-medium
+          bg-black/70 text-yellow-400 border border-yellow-400/40
+          hover:bg-black/90 hover:border-yellow-400/70 transition-all
+          shadow-lg backdrop-blur-sm"
+      >
+        <span className="opacity-70">⚡</span> skip onboarding
+      </button>
+    </div>
+  )
+}
+
 export default function TeachingPage() {
   const { phase } = useDotStore()
   const isBookOpen = getLeftContent(phase) !== 'classroom'
@@ -921,6 +957,7 @@ export default function TeachingPage() {
           <PhonePanel />
         </>
       )}
+      <DevToolbar />
     </div>
   )
 }

@@ -93,6 +93,7 @@ type DotStoreType = {
   proceedToNext: () => void
   helpDot: () => void
   redoQuiz: () => void
+  skipOnboarding: () => void
 }
 
 const DotContext = createContext<DotStoreType | null>(null)
@@ -174,16 +175,40 @@ export function DotProvider({ children }: { children: ReactNode }) {
         return fullText
       }
 
-      addDotMessage(segments[0])
+      // Helper: extract [WORK:...] from a segment, update algebraLines, return clean text
+      const deliverSegment = (seg: string) => {
+        const workMatch = seg.match(/\[WORK:([^\]]+)\]/)
+        const cleanText = seg.replace(/\[WORK:[^\]]*\]/, '').trim()
+        if (workMatch) {
+          const parts = workMatch[1].split('|').map((p) => p.trim()).filter(Boolean)
+          if (parts.length >= 2) {
+            setAlgebraLines((prev) => {
+              const existingTexts = new Set(prev.map((l) => l.text))
+              const newLines: WorkLine[] = []
+              parts.forEach((part, idx) => {
+                if (existingTexts.has(part)) return // skip any line already on the page
+                const style: WorkLine['style'] =
+                  idx === 0 ? 'equation' : idx === parts.length - 1 ? 'result' : 'step'
+                newLines.push({ id: lineId(), text: part, style })
+              })
+              return [...prev, ...newLines]
+            })
+          }
+        }
+        addDotMessage(cleanText)
+      }
+
+      deliverSegment(segments[0])
 
       for (let i = 1; i < segments.length; i++) {
         const seg = segments[i]
-        // Delay proportional to segment length — feels like live typing
-        const typingMs = Math.min(900 + seg.length * 28, 3800)
+        // Delay proportional to visible text length (strip WORK token for timing)
+        const visibleLen = seg.replace(/\[WORK:[^\]]*\]/, '').length
+        const typingMs = Math.min(900 + visibleLen * 28, 3800)
         setDotIsTyping(true)
         await new Promise((r) => setTimeout(r, typingMs))
         setDotIsTyping(false)
-        addDotMessage(seg)
+        deliverSegment(seg)
       }
 
       setDotAnimState('idle')
@@ -221,9 +246,13 @@ export function DotProvider({ children }: { children: ReactNode }) {
     setPerProblemExchangeCount(0)
     setCanTriggerQuiz(false)
 
-    // Write new equation to workspace
+    // Divider separates old work from the new problem — old lines scroll up, never erased
     await new Promise((r) => setTimeout(r, 900))
-    setAlgebraLines([{ id: lineId(), text: nextProblem.equation, style: 'equation' }])
+    setAlgebraLines((prev) => [
+      ...prev,
+      { id: lineId(), text: '', style: 'divider' },
+      { id: lineId(), text: nextProblem.equation, style: 'equation' },
+    ])
 
     // Then Dot's wrong attempt
     await new Promise((r) => setTimeout(r, 800))
@@ -349,12 +378,16 @@ export function DotProvider({ children }: { children: ReactNode }) {
         await streamDotResponse(nextMessages, updatedKnowledge, 'core-teach', currentProblem)
 
         // After Dot responds: if enough teaching has happened on this problem,
-        // have her try the next one in the workspace
+        // have her try the next one in the workspace.
+        // Fast path: 1 conceptual exchange is enough — Dot got the concept.
+        // Normal path: 2+ non-vague exchanges.
+        // Fallback: 3+ exchanges regardless, so terse students never get stuck.
         const nextIdx = currentProblemIndex + 1
         const shouldAdvance =
-          newPerCount >= 2 &&
-          evalQuality !== 'vague' &&
-          nextIdx < ALGEBRA_PROBLEMS.length
+          nextIdx < ALGEBRA_PROBLEMS.length &&
+          (evalQuality === 'conceptual' ||
+            (newPerCount >= 2 && evalQuality !== 'vague') ||
+            newPerCount >= 3)
 
         if (shouldAdvance) {
           await advanceWorkspaceToProblem(nextIdx)
@@ -444,6 +477,18 @@ export function DotProvider({ children }: { children: ReactNode }) {
     setPhase('quiz-intro')
   }, [])
 
+  // ── skipOnboarding (dev only) ──────────────────────────────────────────────
+  // Jump straight to core-intro, as if the student completed onboarding.
+
+  const skipOnboarding = useCallback(() => {
+    setHomeworkLines(INITIAL_HOMEWORK.map((l) => ({ ...l, state: 'corrected' as const })))
+    setChatVisible(true)
+    setMessages([])
+    setPhase('core-intro')
+    const problem = ALGEBRA_PROBLEMS[0]
+    setTimeout(() => addDotMessage(ALGEBRA_INTRO(problem, FIRST_ATTEMPTS[problem.id])), 300)
+  }, [addDotMessage])
+
   return (
     <DotContext.Provider
       value={{
@@ -467,6 +512,7 @@ export function DotProvider({ children }: { children: ReactNode }) {
         proceedToNext,
         helpDot,
         redoQuiz,
+        skipOnboarding,
       }}
     >
       {children}

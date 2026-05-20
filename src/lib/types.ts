@@ -69,7 +69,7 @@ export type HomeworkLine = {
 export type WorkLine = {
   id: string
   text: string
-  style: 'equation' | 'wrong-attempt' | 'step' | 'result'
+  style: 'equation' | 'wrong-attempt' | 'step' | 'result' | 'divider'
   crossedOut?: boolean
 }
 

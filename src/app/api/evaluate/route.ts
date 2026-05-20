@@ -92,6 +92,8 @@ export async function POST(req: Request) {
       ...knowledge.taughtConcepts,
       ...newlyCovered.filter((c) => !knowledge.taughtConcepts.includes(c)),
     ],
+    seenMisconceptionIds: knowledge.seenMisconceptionIds,
+    seenGapIds: knowledge.seenGapIds,
   }
 
   const result: EvaluationResult = {

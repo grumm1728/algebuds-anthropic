@@ -157,8 +157,8 @@ export function buildEvaluatorPrompt(
   problem: AlgebraProblem,
 ): string {
   const conceptsToWatch = [
-    ...knowledge.gaps.map((g) => g.concept),
-    ...knowledge.misconceptions.map((m) => `Correcting: ${m.description}`),
+    ...knowledge.gaps.map((g) => `[${g.id}] ${g.concept}`),
+    ...knowledge.misconceptions.map((m) => `[${m.id}] Correcting: ${m.description}`),
   ]
 
   return `\

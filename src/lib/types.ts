@@ -36,6 +36,8 @@ export type KnowledgeState = {
   misconceptions: Misconception[]
   gaps: ConceptGap[]
   taughtConcepts: string[]
+  seenMisconceptionIds: string[]  // IDs ever active; prevents re-injection after correction
+  seenGapIds: string[]
 }
 
 // ── Problems ───────────────────────────────────────────────────────────────────

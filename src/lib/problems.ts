@@ -90,6 +90,8 @@ export const INITIAL_KNOWLEDGE: KnowledgeState = {
   misconceptions: [ALL_MISCONCEPTIONS[0], ALL_MISCONCEPTIONS[1]],
   gaps: [ALL_GAPS[0], ALL_GAPS[1]],
   taughtConcepts: [],
+  seenMisconceptionIds: [ALL_MISCONCEPTIONS[0].id, ALL_MISCONCEPTIONS[1].id],
+  seenGapIds: [ALL_GAPS[0].id, ALL_GAPS[1].id],
 }
 
 // ── Problem progression (from spec) ───────────────────────────────────────────

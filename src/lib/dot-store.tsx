@@ -41,15 +41,40 @@ const FIRST_ATTEMPTS: Record<string, string> = {
 }
 
 // Scripted first attempts — shown when the workbook opens and on each new problem.
-// steps = intermediate work lines; answer = Dot's (wrong) conclusion.
-const SCRIPTED_FIRST_ATTEMPTS: Record<string, { steps: string[]; answer: string }> = {
-  p1:  { steps: ['x + 5 = 12', 'x = 12 + 5'],                    answer: 'x = 17'  },
-  p1b: { steps: ['x - 3 = 9', 'x = 9 - 3'],                      answer: 'x = 6'   },
-  p2:  { steps: ['3x = 15', 'x = 15 + 3'],                        answer: 'x = 18'  },
-  p3:  { steps: ['(1/3)x = 15', 'x = 15 ÷ 3'],                    answer: 'x = 5'   },
-  p4:  { steps: ['2x - 3 = 19', '2x = 19', 'x = 19 ÷ 2'],        answer: 'x = 9.5' },
-  p5:  { steps: ['2x - 3 = 18', '2x = 18', 'x = 18 ÷ 2'],        answer: 'x = 9'   },
-  p6:  { steps: ['2(x + 3) = 14', '2x + 3 = 14', '2x = 11'],     answer: 'x = 5.5' },
+// Each problem has ordered options; first whose ifMisconceptionsActive are all met wins.
+// Last entry in each array is the unconditional default.
+type ScriptedAttemptOption = {
+  steps: string[]
+  answer: string
+  ifMisconceptionsActive?: string[]
+}
+
+const SCRIPTED_FIRST_ATTEMPTS: Record<string, ScriptedAttemptOption[]> = {
+  p1: [
+    { steps: ['x + 5 = 12', 'x = 12 + 5'], answer: 'x = 17' },
+  ],
+  p1b: [
+    { ifMisconceptionsActive: ['move-dont-balance'], steps: ['x - 3 = 9', 'x = 9 - 3'], answer: 'x = 6' },
+    { steps: ['x - 3 = 9', 'x - 3 + 3 = 9 + 3'], answer: 'x = 12' }, // balance learned — correct!
+  ],
+  p2: [
+    { ifMisconceptionsActive: ['move-dont-balance'], steps: ['3x = 15', 'x = 15 + 3'], answer: 'x = 18' },
+    { steps: ['3x = 15', '3x - 3 = 15 - 3'], answer: 'x = 12' }, // balanced but wrong op
+  ],
+  p3: [
+    { steps: ['(1/3)x = 15', 'x = 15 ÷ 3'], answer: 'x = 5' },
+  ],
+  p4: [
+    { ifMisconceptionsActive: ['move-dont-balance'], steps: ['2x - 3 = 19', '2x = 19', 'x = 19 ÷ 2'], answer: 'x = 9.5' },
+    { steps: ['2x - 3 = 19', '2x - 3 ÷ 2 = 19 ÷ 2', 'x - 3 = 9.5', 'x = 12.5'], answer: 'x = 12.5' }, // undo-order only
+  ],
+  p5: [
+    { ifMisconceptionsActive: ['move-dont-balance'], steps: ['2x - 3 = 18', '2x = 18', 'x = 18 ÷ 2'], answer: 'x = 9' },
+    { steps: ['2x - 3 = 18', '2x - 3 ÷ 2 = 18 ÷ 2', 'x - 3 = 9', 'x = 12'], answer: 'x = 12' }, // undo-order only
+  ],
+  p6: [
+    { steps: ['2(x + 3) = 14', '2x + 3 = 14', '2x = 11'], answer: 'x = 5.5' },
+  ],
 }
 
 const COMPLETE_MESSAGE =
@@ -293,32 +318,35 @@ export function DotProvider({ children }: { children: ReactNode }) {
     setCurrentProblemIndex(nextIndex)
     setPerProblemExchangeCount(0)
 
-    // Inject any misconceptions/gaps that are new to this problem and not yet in knowledge state
-    setKnowledge((prev) => {
-      const existingMisconceptionIds = new Set(prev.misconceptions.map((m) => m.id))
-      const existingGapIds = new Set(prev.gaps.map((g) => g.id))
+    // Compute injected knowledge synchronously so we can use it for attempt selection
+    const existingMisconceptionIds = new Set(knowledge.misconceptions.map((m) => m.id))
+    const existingGapIds = new Set(knowledge.gaps.map((g) => g.id))
+    const newMisconceptions = nextProblem.targetMisconceptions
+      .filter((id) => !existingMisconceptionIds.has(id) && !knowledge.seenMisconceptionIds.includes(id))
+      .map((id) => ALL_MISCONCEPTIONS.find((m) => m.id === id))
+      .filter((m): m is NonNullable<typeof m> => m !== undefined)
+    const newGaps = nextProblem.targetGaps
+      .filter((id) => !existingGapIds.has(id) && !knowledge.seenGapIds.includes(id))
+      .map((id) => ALL_GAPS.find((g) => g.id === id))
+      .filter((g): g is NonNullable<typeof g> => g !== undefined)
+    const injectedKnowledge: KnowledgeState = {
+      ...knowledge,
+      misconceptions: [...knowledge.misconceptions, ...newMisconceptions],
+      gaps: [...knowledge.gaps, ...newGaps],
+      seenMisconceptionIds: [...knowledge.seenMisconceptionIds, ...newMisconceptions.map((m) => m.id)],
+      seenGapIds: [...knowledge.seenGapIds, ...newGaps.map((g) => g.id)],
+    }
+    setKnowledge(injectedKnowledge)
 
-      const newMisconceptions = nextProblem.targetMisconceptions
-        .filter((id) => !existingMisconceptionIds.has(id))
-        .map((id) => ALL_MISCONCEPTIONS.find((m) => m.id === id))
-        .filter((m): m is NonNullable<typeof m> => m !== undefined)
-
-      const newGaps = nextProblem.targetGaps
-        .filter((id) => !existingGapIds.has(id))
-        .map((id) => ALL_GAPS.find((g) => g.id === id))
-        .filter((g): g is NonNullable<typeof g> => g !== undefined)
-
-      if (newMisconceptions.length === 0 && newGaps.length === 0) return prev
-      return {
-        ...prev,
-        misconceptions: [...prev.misconceptions, ...newMisconceptions],
-        gaps: [...prev.gaps, ...newGaps],
-      }
-    })
+    // Select the scripted attempt appropriate for current knowledge state
+    const activeIds = new Set(injectedKnowledge.misconceptions.map((m) => m.id))
+    const options = SCRIPTED_FIRST_ATTEMPTS[nextProblem.id]
+    const scripted = options.find(
+      (o) => !o.ifMisconceptionsActive || o.ifMisconceptionsActive.every((id) => activeIds.has(id))
+    ) ?? options[options.length - 1]
 
     await new Promise((r) => setTimeout(r, 900))
 
-    const scripted = SCRIPTED_FIRST_ATTEMPTS[nextProblem.id]
     const id = newAttemptId()
 
     setProblemBlocks((prev) => [
@@ -333,10 +361,13 @@ export function DotProvider({ children }: { children: ReactNode }) {
     animateAttemptLines(setProblemBlocks, nextProblem.id, id, scripted.steps, scripted.answer)
 
     await new Promise((r) => setTimeout(r, 500))
+    const isCorrectAttempt = scripted.answer === nextProblem.answer
     addDotMessage(
-      `ooh wait!! I want to try that on a new one — ${nextProblem.equation}!! I wrote my attempt in the notebook, can you check if I did it right?`,
+      isCorrectAttempt
+        ? `ooh wait!! I tried ${nextProblem.equation} and I think I got it!! your teaching is working — can you check my work?`
+        : `ooh wait!! I want to try that on a new one — ${nextProblem.equation}!! I wrote my attempt in the notebook, can you check if I did it right?`,
     )
-  }, [addDotMessage])
+  }, [addDotMessage, knowledge])
 
   // ── resolveVerdict ────────────────────────────────────────────────────────
   // Called by the UI after the 5-second countdown finishes.
@@ -411,7 +442,11 @@ export function DotProvider({ children }: { children: ReactNode }) {
     const problem = ALGEBRA_PROBLEMS[currentProblemIndex]
     setPhase('core-writing')
 
-    const scripted = SCRIPTED_FIRST_ATTEMPTS[problem.id]
+    const activeIds = new Set(knowledge.misconceptions.map((m) => m.id))
+    const options = SCRIPTED_FIRST_ATTEMPTS[problem.id]
+    const scripted = options.find(
+      (o) => !o.ifMisconceptionsActive || o.ifMisconceptionsActive.every((id) => activeIds.has(id))
+    ) ?? options[options.length - 1]
     const id = newAttemptId()
 
     setProblemBlocks([{
@@ -425,7 +460,7 @@ export function DotProvider({ children }: { children: ReactNode }) {
       setProblemBlocks, problem.id, id, scripted.steps, scripted.answer,
       () => setTimeout(() => setPhase('core-teach'), 400),
     )
-  }, [currentProblemIndex])
+  }, [currentProblemIndex, knowledge])
 
   const openNotebook = useCallback(() => {
     if (phase === 'landing') openHomeworkNotebook()

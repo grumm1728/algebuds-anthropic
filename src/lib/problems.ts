@@ -70,6 +70,19 @@ export const ALGEBRA_PROBLEMS: AlgebraProblem[] = [
     targetGaps: ['equality-principle', 'inverse-operations'],
   },
   {
+    id: 'p1b',
+    equation: 'x - 3 = 9',
+    answer: 'x = 12',
+    solutionSteps: [
+      'Start with x - 3 = 9.',
+      'Add 3 to both sides: x - 3 + 3 = 9 + 3.',
+      'Simplify: x = 12.',
+      'Check: 12 - 3 = 9 ✓',
+    ],
+    targetMisconceptions: ['move-dont-balance'],
+    targetGaps: ['equality-principle', 'inverse-operations'],
+  },
+  {
     id: 'p2',
     equation: '3x = 15',
     answer: 'x = 5',

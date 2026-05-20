@@ -1,6 +1,6 @@
 'use client'
 
-import {
+import React, {
   createContext,
   useCallback,
   useContext,
@@ -31,21 +31,23 @@ const ALGEBRA_INTRO = (problem: AlgebraProblem, wrongAnswer: string) =>
   `ok!! my teacher also gave us algebra — equations with x. I tried this one: ${problem.equation}. I got ${wrongAnswer}. marked wrong. what am I doing wrong?`
 
 const FIRST_ATTEMPTS: Record<string, string> = {
-  p1: 'x = 17 (moved the 5 over and added it)',
-  p2: 'x = 18 (moved the 3 over and added)',
-  p3: 'x = 5 (divided by 3)',
-  p4: 'x = 9.5 (divided 19 by 2 first)',
-  p5: 'x = 9 (divided 18 by 2 first)',
+  p1:  'x = 17 (moved the 5 over and added it)',
+  p1b: 'x = 6 (moved the 3 over but kept subtracting)',
+  p2:  'x = 18 (moved the 3 over and added)',
+  p3:  'x = 5 (divided by 3)',
+  p4:  'x = 9.5 (divided 19 by 2 first)',
+  p5:  'x = 9 (divided 18 by 2 first)',
 }
 
 // Scripted first attempts — shown when the workbook opens and on each new problem.
 // steps = intermediate work lines; answer = Dot's (wrong) conclusion.
 const SCRIPTED_FIRST_ATTEMPTS: Record<string, { steps: string[]; answer: string }> = {
-  p1: { steps: ['x + 5 = 12', 'x = 12 + 5'],           answer: 'x = 17'  },
-  p2: { steps: ['3x = 15', 'x = 15 + 3'],               answer: 'x = 18'  },
-  p3: { steps: ['(1/3)x = 15', 'x = 15 ÷ 3'],           answer: 'x = 5'   },
-  p4: { steps: ['2x - 3 = 19', '2x = 19', 'x = 19 ÷ 2'], answer: 'x = 9.5' },
-  p5: { steps: ['2x - 3 = 18', '2x = 18', 'x = 18 ÷ 2'], answer: 'x = 9'   },
+  p1:  { steps: ['x + 5 = 12', 'x = 12 + 5'],             answer: 'x = 17'  },
+  p1b: { steps: ['x - 3 = 9', 'x = 9 - 3'],               answer: 'x = 6'   },
+  p2:  { steps: ['3x = 15', 'x = 15 + 3'],                 answer: 'x = 18'  },
+  p3:  { steps: ['(1/3)x = 15', 'x = 15 ÷ 3'],             answer: 'x = 5'   },
+  p4:  { steps: ['2x - 3 = 19', '2x = 19', 'x = 19 ÷ 2'], answer: 'x = 9.5' },
+  p5:  { steps: ['2x - 3 = 18', '2x = 18', 'x = 18 ÷ 2'], answer: 'x = 9'   },
 }
 
 const COMPLETE_MESSAGE =
@@ -62,6 +64,56 @@ function toApiMessages(msgs: TeachMessage[]) {
     role: (m.sender === 'dot' ? 'assistant' : 'user') as 'user' | 'assistant',
     content: m.text,
   }))
+}
+
+// Animates a WorkAttempt into view one line at a time.
+// Adds steps sequentially, then the answer, then starts the verdict timer.
+function animateAttemptLines(
+  setProblemBlocks: React.Dispatch<React.SetStateAction<ProblemBlock[]>>,
+  blockId: string,
+  attemptId: string,
+  steps: string[],
+  answer: string,
+  onTimerStart?: () => void,
+  delayMs = 280,
+) {
+  steps.forEach((step, i) => {
+    setTimeout(() => {
+      setProblemBlocks((prev) => prev.map((b) =>
+        b.id !== blockId ? b : {
+          ...b,
+          attempts: b.attempts.map((a) =>
+            a.id !== attemptId ? a : { ...a, steps: [...a.steps, step] }
+          ),
+        }
+      ))
+    }, (i + 1) * delayMs)
+  })
+
+  // Answer appears after all steps
+  setTimeout(() => {
+    setProblemBlocks((prev) => prev.map((b) =>
+      b.id !== blockId ? b : {
+        ...b,
+        attempts: b.attempts.map((a) =>
+          a.id !== attemptId ? a : { ...a, answer }
+        ),
+      }
+    ))
+  }, (steps.length + 1) * delayMs)
+
+  // Verdict timer starts one beat after answer
+  setTimeout(() => {
+    setProblemBlocks((prev) => prev.map((b) =>
+      b.id !== blockId ? b : {
+        ...b,
+        attempts: b.attempts.map((a) =>
+          a.id !== attemptId ? a : { ...a, verdict: 'timing' as AttemptVerdict }
+        ),
+      }
+    ))
+    onTimerStart?.()
+  }, (steps.length + 2) * delayMs)
 }
 
 // ── Store type ────────────────────────────────────────────────────────────────
@@ -171,37 +223,23 @@ export function DotProvider({ children }: { children: ReactNode }) {
           // parts[0] = equation (already shown as block header — skip)
           // parts[1..n-2] = intermediate steps
           // parts[n-1] = answer ('???' when Dot is stuck)
-          if (parts.length >= 2) {
+          if (parts.length >= 2 && problem) {
             const steps = parts.slice(1, parts.length - 1)
             const answer = parts[parts.length - 1]
             const id = newAttemptId()
 
+            // Add empty attempt shell first, then animate lines in
             setProblemBlocks((prev) => {
               if (prev.length === 0) return prev
               const last = prev[prev.length - 1]
-              const newAttempt: WorkAttempt = { id, steps, answer, verdict: null }
+              const newAttempt: WorkAttempt = { id, steps: [], answer: null, verdict: null }
               return [
                 ...prev.slice(0, -1),
                 { ...last, attempts: [...last.attempts, newAttempt] },
               ]
             })
 
-            // Start the 5-second countdown a beat after the answer renders
-            setTimeout(() => {
-              setProblemBlocks((prev) => {
-                if (prev.length === 0) return prev
-                const last = prev[prev.length - 1]
-                return [
-                  ...prev.slice(0, -1),
-                  {
-                    ...last,
-                    attempts: last.attempts.map((a) =>
-                      a.id === id ? { ...a, verdict: 'timing' as AttemptVerdict } : a
-                    ),
-                  },
-                ]
-              })
-            }, 600)
+            animateAttemptLines(setProblemBlocks, problem.id, id, steps, answer)
           }
         }
 
@@ -256,21 +294,22 @@ export function DotProvider({ children }: { children: ReactNode }) {
     await new Promise((r) => setTimeout(r, 900))
 
     const scripted = SCRIPTED_FIRST_ATTEMPTS[nextProblem.id]
-    const firstAttempt: WorkAttempt = {
-      id: newAttemptId(),
-      steps: scripted.steps,
-      answer: scripted.answer,
-      verdict: 'timing',
-    }
+    const id = newAttemptId()
 
     setProblemBlocks((prev) => [
       ...prev,
-      { id: nextProblem.id, equation: nextProblem.equation, attempts: [firstAttempt] },
+      {
+        id: nextProblem.id,
+        equation: nextProblem.equation,
+        attempts: [{ id, steps: [], answer: null, verdict: null }],
+      },
     ])
+
+    animateAttemptLines(setProblemBlocks, nextProblem.id, id, scripted.steps, scripted.answer)
 
     await new Promise((r) => setTimeout(r, 500))
     addDotMessage(
-      `ooh wait!! I want to try using that on a new problem to see if I really get it — I wrote my attempt in the notebook! can you check if I did it right?`,
+      `ooh wait!! I want to try that on a new one — ${nextProblem.equation}!! I wrote my attempt in the notebook, can you check if I did it right?`,
     )
   }, [addDotMessage])
 
@@ -348,20 +387,19 @@ export function DotProvider({ children }: { children: ReactNode }) {
     setPhase('core-writing')
 
     const scripted = SCRIPTED_FIRST_ATTEMPTS[problem.id]
-    const firstAttempt: WorkAttempt = {
-      id: newAttemptId(),
-      steps: scripted.steps,
-      answer: scripted.answer,
-      verdict: 'timing',
-    }
+    const id = newAttemptId()
 
     setProblemBlocks([{
       id: problem.id,
       equation: problem.equation,
-      attempts: [firstAttempt],
+      attempts: [{ id, steps: [], answer: null, verdict: null }],
     }])
 
-    setTimeout(() => setPhase('core-teach'), 1000)
+    // Transition to core-teach once the timer has started (all lines written in)
+    animateAttemptLines(
+      setProblemBlocks, problem.id, id, scripted.steps, scripted.answer,
+      () => setTimeout(() => setPhase('core-teach'), 400),
+    )
   }, [currentProblemIndex])
 
   const openNotebook = useCallback(() => {

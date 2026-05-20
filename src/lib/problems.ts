@@ -22,6 +22,30 @@ export const ALL_MISCONCEPTIONS: Misconception[] = [
       'With fraction coefficients like (1/3)x = 15, I try to divide by the fraction instead of multiplying by its reciprocal',
     triggerCondition: 'equations with fraction coefficients',
   },
+  {
+    id: 'non-integer-result',
+    description:
+      'When solving leads to a decimal or fraction answer, I round to the nearest integer or stop before the final division step',
+    triggerCondition: 'two-step equations where the final answer is not a whole number',
+  },
+  {
+    id: 'partial-distribution',
+    description:
+      'When distributing, I only multiply the first term inside the parentheses, not all of them',
+    triggerCondition: 'equations with parentheses like a(x + b) = c',
+  },
+  {
+    id: 'ignore-negative-coefficient',
+    description:
+      'When the coefficient of x is negative (like -3x), I treat it as positive and get the magnitude right but the wrong sign',
+    triggerCondition: 'equations like -3x = 15 (should give x = -5, gives x = 5)',
+  },
+  {
+    id: 'variable-subtracted',
+    description:
+      'For equations in the form a - bx = c, I don\'t know how to handle x being subtracted — I may treat it as a + bx = c, or make a sign error after isolating -bx',
+    triggerCondition: 'equations like 4 - 5x = 14',
+  },
 ]
 
 // ── Gaps ───────────────────────────────────────────────────────────────────────
@@ -42,6 +66,21 @@ export const ALL_GAPS: ConceptGap[] = [
     id: 'reciprocal-multiplication',
     concept:
       'Multiplying by the reciprocal of a fraction is the same as dividing by the fraction',
+  },
+  {
+    id: 'distributive-property',
+    concept:
+      'When multiplying a term by a parenthesized sum, every term inside must be multiplied: a(x + b) = ax + ab',
+  },
+  {
+    id: 'negative-coefficient',
+    concept:
+      'A negative coefficient means dividing both sides by a negative number flips the sign of x',
+  },
+  {
+    id: 'solving-subtracted-variable',
+    concept:
+      'When x is being subtracted (a - bx = c), add bx to both sides first to make it positive, then solve as normal',
   },
 ]
 
@@ -132,8 +171,22 @@ export const ALGEBRA_PROBLEMS: AlgebraProblem[] = [
       'Divide both sides by 2: x = 10.5.',
       'Check: 2(10.5) - 3 = 21 - 3 = 18 ✓',
     ],
-    targetMisconceptions: ['undo-order', 'move-dont-balance'],
+    targetMisconceptions: ['undo-order', 'move-dont-balance', 'non-integer-result'],
     targetGaps: ['equality-principle', 'inverse-operations'],
+  },
+  {
+    id: 'p6',
+    equation: '2(x + 3) = 14',
+    answer: 'x = 4',
+    solutionSteps: [
+      'Start with 2(x + 3) = 14.',
+      'Distribute: 2x + 6 = 14.',
+      'Subtract 6 from both sides: 2x = 8.',
+      'Divide both sides by 2: x = 4.',
+      'Check: 2(4 + 3) = 2 × 7 = 14 ✓',
+    ],
+    targetMisconceptions: ['partial-distribution'],
+    targetGaps: ['distributive-property'],
   },
 ]
 

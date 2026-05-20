@@ -20,7 +20,7 @@ import type {
   WorkAttempt,
   AttemptVerdict,
 } from './types'
-import { ALGEBRA_PROBLEMS, INITIAL_KNOWLEDGE, INITIAL_HOMEWORK } from './problems'
+import { ALGEBRA_PROBLEMS, INITIAL_KNOWLEDGE, INITIAL_HOMEWORK, ALL_MISCONCEPTIONS, ALL_GAPS } from './problems'
 
 // ── Scripted content ───────────────────────────────────────────────────────────
 
@@ -37,17 +37,19 @@ const FIRST_ATTEMPTS: Record<string, string> = {
   p3:  'x = 5 (divided by 3)',
   p4:  'x = 9.5 (divided 19 by 2 first)',
   p5:  'x = 9 (divided 18 by 2 first)',
+  p6:  'x = 5.5 (multiplied the x but forgot about the 3 inside the parentheses)',
 }
 
 // Scripted first attempts — shown when the workbook opens and on each new problem.
 // steps = intermediate work lines; answer = Dot's (wrong) conclusion.
 const SCRIPTED_FIRST_ATTEMPTS: Record<string, { steps: string[]; answer: string }> = {
-  p1:  { steps: ['x + 5 = 12', 'x = 12 + 5'],             answer: 'x = 17'  },
-  p1b: { steps: ['x - 3 = 9', 'x = 9 - 3'],               answer: 'x = 6'   },
-  p2:  { steps: ['3x = 15', 'x = 15 + 3'],                 answer: 'x = 18'  },
-  p3:  { steps: ['(1/3)x = 15', 'x = 15 ÷ 3'],             answer: 'x = 5'   },
-  p4:  { steps: ['2x - 3 = 19', '2x = 19', 'x = 19 ÷ 2'], answer: 'x = 9.5' },
-  p5:  { steps: ['2x - 3 = 18', '2x = 18', 'x = 18 ÷ 2'], answer: 'x = 9'   },
+  p1:  { steps: ['x + 5 = 12', 'x = 12 + 5'],                    answer: 'x = 17'  },
+  p1b: { steps: ['x - 3 = 9', 'x = 9 - 3'],                      answer: 'x = 6'   },
+  p2:  { steps: ['3x = 15', 'x = 15 + 3'],                        answer: 'x = 18'  },
+  p3:  { steps: ['(1/3)x = 15', 'x = 15 ÷ 3'],                    answer: 'x = 5'   },
+  p4:  { steps: ['2x - 3 = 19', '2x = 19', 'x = 19 ÷ 2'],        answer: 'x = 9.5' },
+  p5:  { steps: ['2x - 3 = 18', '2x = 18', 'x = 18 ÷ 2'],        answer: 'x = 9'   },
+  p6:  { steps: ['2(x + 3) = 14', '2x + 3 = 14', '2x = 11'],     answer: 'x = 5.5' },
 }
 
 const COMPLETE_MESSAGE =
@@ -290,6 +292,29 @@ export function DotProvider({ children }: { children: ReactNode }) {
 
     setCurrentProblemIndex(nextIndex)
     setPerProblemExchangeCount(0)
+
+    // Inject any misconceptions/gaps that are new to this problem and not yet in knowledge state
+    setKnowledge((prev) => {
+      const existingMisconceptionIds = new Set(prev.misconceptions.map((m) => m.id))
+      const existingGapIds = new Set(prev.gaps.map((g) => g.id))
+
+      const newMisconceptions = nextProblem.targetMisconceptions
+        .filter((id) => !existingMisconceptionIds.has(id))
+        .map((id) => ALL_MISCONCEPTIONS.find((m) => m.id === id))
+        .filter((m): m is NonNullable<typeof m> => m !== undefined)
+
+      const newGaps = nextProblem.targetGaps
+        .filter((id) => !existingGapIds.has(id))
+        .map((id) => ALL_GAPS.find((g) => g.id === id))
+        .filter((g): g is NonNullable<typeof g> => g !== undefined)
+
+      if (newMisconceptions.length === 0 && newGaps.length === 0) return prev
+      return {
+        ...prev,
+        misconceptions: [...prev.misconceptions, ...newMisconceptions],
+        gaps: [...prev.gaps, ...newGaps],
+      }
+    })
 
     await new Promise((r) => setTimeout(r, 900))
 

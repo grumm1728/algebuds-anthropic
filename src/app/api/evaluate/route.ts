@@ -54,20 +54,30 @@ export async function POST(req: Request) {
     }
   }
 
-  // Build updated knowledge state
-  const updatedMisconceptions = knowledge.misconceptions.filter(
-    (m) => !parsed.misconceptionsAddressed.includes(m.id),
-  )
-  const updatedGaps = knowledge.gaps.filter(
-    (g) => !parsed.gapsAddressed.includes(g.id),
-  )
+  // Quality-gated knowledge removal:
+  //   conceptual → remove from both misconceptions and gaps
+  //   procedural → remove from misconceptions only; gaps persist (knows the step, not the why)
+  //   vague      → no removal
+  const isConceptual = parsed.quality === 'conceptual'
+  const isProcedural = parsed.quality === 'procedural'
 
-  // Newly taught concepts: pull full descriptions from master lists
+  const updatedMisconceptions = (isConceptual || isProcedural)
+    ? knowledge.misconceptions.filter((m) => !parsed.misconceptionsAddressed.includes(m.id))
+    : knowledge.misconceptions
+
+  const updatedGaps = isConceptual
+    ? knowledge.gaps.filter((g) => !parsed.gapsAddressed.includes(g.id))
+    : knowledge.gaps
+
+  // Newly taught concepts — only record what was actually removed
+  const removedGapIds = isConceptual ? parsed.gapsAddressed : []
+  const removedMisconceptionIds = (isConceptual || isProcedural) ? parsed.misconceptionsAddressed : []
+
   const newlyCovered = [
-    ...parsed.gapsAddressed.map(
+    ...removedGapIds.map(
       (id) => ALL_GAPS.find((g) => g.id === id)?.concept ?? id,
     ),
-    ...parsed.misconceptionsAddressed.map(
+    ...removedMisconceptionIds.map(
       (id) =>
         ALL_MISCONCEPTIONS.find((m) => m.id === id)?.description
           ? `Corrected: ${ALL_MISCONCEPTIONS.find((m) => m.id === id)!.description}`

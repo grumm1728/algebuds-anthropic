@@ -1,4 +1,4 @@
-import type { AlgebraProblem, Misconception, ConceptGap, KnowledgeState, HomeworkLine, QuizItem } from './types'
+import type { AlgebraProblem, Misconception, ConceptGap, KnowledgeState, HomeworkLine } from './types'
 
 // ── Misconceptions ─────────────────────────────────────────────────────────────
 // Buggy rules from earlier grades that worked once but break in new contexts
@@ -167,20 +167,3 @@ export const INITIAL_HOMEWORK: HomeworkLine[] = [
   },
 ]
 
-// ── Quiz sheet (scripted — reflects partial teaching) ─────────────────────────
-// Dot gets most right but still misses fraction + two-step edge cases
-
-export const INITIAL_QUIZ: QuizItem[] = [
-  { id: 'q1',  equation: 'x + 5 = 20',          dotAnswer: 'x = 15',     isCorrect: true,  state: 'hidden' },
-  { id: 'q2',  equation: 'x + 5 = 11',          dotAnswer: 'x = 6',      isCorrect: true,  state: 'hidden' },
-  { id: 'q3',  equation: '4 + x = 16',          dotAnswer: 'x = 12',     isCorrect: true,  state: 'hidden' },
-  { id: 'q4',  equation: '3x = 18',             dotAnswer: 'x = 6',      isCorrect: true,  state: 'hidden' },
-  { id: 'q5',  equation: '5x = 15',             dotAnswer: 'x = 3',      isCorrect: true,  state: 'hidden' },
-  { id: 'q6',  equation: 'x + 3 = 9',           dotAnswer: 'x = 6',      isCorrect: true,  state: 'hidden' },
-  { id: 'q7',  equation: '2x + 1 = 9',          dotAnswer: 'x = 4',      isCorrect: true,  state: 'hidden' },
-  { id: 'q8',  equation: 'x - 5 = 20',          dotAnswer: 'x = 25',     isCorrect: true,  state: 'hidden' },
-  { id: 'q9',  equation: '2x - 3 = 11',         dotAnswer: 'x = 4',      isCorrect: false, state: 'hidden' },
-  { id: 'q10', equation: '(1/2)x = 15',         dotAnswer: 'x = 7.5',    isCorrect: false, state: 'hidden' },
-  { id: 'q11', equation: '3x - 6 = 18',         dotAnswer: 'x = 2',      isCorrect: false, state: 'hidden' },
-  { id: 'q12', equation: '(1/3)x + 2 = 8',      dotAnswer: 'x = 2',      isCorrect: false, state: 'hidden' },
-]

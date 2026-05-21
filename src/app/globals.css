@@ -75,6 +75,12 @@ textarea {
   caret-color: var(--color-text-primary);
 }
 
+/* Dot walking bob */
+@keyframes walk {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-4px); }
+}
+
 /* Custom scrollbar for chat area */
 .scroll-area::-webkit-scrollbar {
   width: 8px;

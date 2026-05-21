@@ -26,7 +26,7 @@ function Chalkboard() {
 
   return (
     <div
-      className="w-[58%] ml-[18%] rounded-t-sm bg-[#2d5a27] px-6 pt-6 pb-10 text-center shadow-inner relative"
+      className="w-[65%] rounded-t-sm bg-[#2d5a27] px-6 pt-[60px] pb-[72px] text-center shadow-inner relative"
     >
       <p className="font-mono text-[10px] text-[#c8e6c9]/50 mb-1 uppercase tracking-wider">
         today
@@ -166,26 +166,43 @@ function KnowledgeDebugPanel() {
   )
 }
 
+const LEFT_DESK_POS  = 'top-[22%] left-[25%] -translate-x-1/2'
+const RIGHT_DESK_POS = 'top-[22%] left-[75%] -translate-x-1/2'
+
 function ClassroomScene() {
   const { phase, openNotebook, helpDot, dotAnimState } = useDotStore()
+  const [isWalking, setIsWalking] = useState(false)
+  const [dotFacing, setDotFacing] = useState<number>(0)
+  const [walkTargetPos, setWalkTargetPos] = useState<string | null>(null)
 
   const dotPosition: Partial<Record<SessionPhase, string>> = {
-    landing: 'bottom-10 left-1/2 -translate-x-1/2',
-    'core-intro': 'bottom-10 left-[28%]',
-    home: 'bottom-10 left-1/2 -translate-x-1/2',
+    landing:      'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2',
+    'core-intro': LEFT_DESK_POS,
+    home:         'bottom-10 left-1/2 -translate-x-1/2',
+  }
+
+  const walkThenOpen = (targetPos: string, facing: number, callback: () => void) => {
+    setDotFacing(facing)
+    setWalkTargetPos(targetPos)
+    setIsWalking(true)
+    setTimeout(() => {
+      setIsWalking(false)
+      setWalkTargetPos(null)
+      callback()
+    }, 1300)
   }
 
   const leftDesk = (() => {
     if (phase === 'landing')
-      return { label: 'Homework', clickable: true, onClick: openNotebook, pulse: true }
+      return { label: 'Homework', clickable: true, onClick: () => walkThenOpen(LEFT_DESK_POS, -90, openNotebook), pulse: true }
     return { label: 'Homework ✓', clickable: false, dimmed: true }
   })()
 
   const rightDesk = (() => {
     if (phase === 'core-intro')
-      return { label: 'New Work!', clickable: true, onClick: openNotebook, pulse: true }
+      return { label: 'New Work!', clickable: true, onClick: () => walkThenOpen(RIGHT_DESK_POS, 90, openNotebook), pulse: true }
     if (phase === 'home')
-      return { label: 'Help Dot', clickable: true, onClick: helpDot, pulse: false }
+      return { label: 'Help Dot', clickable: true, onClick: () => walkThenOpen(RIGHT_DESK_POS, 90, helpDot), pulse: false }
     return null
   })()
 
@@ -199,11 +216,11 @@ function ClassroomScene() {
       )}
       <KnowledgeDebugPanel />
       {/* Wall — taller to accommodate bigger chalkboard + wall details */}
-      <div className="h-[56%] bg-[#d4b896] relative flex flex-col items-center justify-center pb-4">
+      <div className="h-[40%] bg-[#d4b896] relative flex flex-col items-center justify-center pb-4">
 
         {/* Door — bottom-left */}
         <div className="absolute bottom-0 left-4">
-          <div className="w-14 h-28 rounded-t-md bg-[#8b5e3c] border-2 border-[#6a4428] shadow-md relative overflow-hidden">
+          <div className="w-20 h-36 rounded-t-md bg-[#8b5e3c] border-2 border-[#6a4428] shadow-md relative overflow-hidden">
             {/* Upper raised panel */}
             <div className="absolute inset-2 bottom-[52%] border border-[#6a4428]/35 rounded-sm" />
             {/* Lower raised panel */}
@@ -215,12 +232,12 @@ function ClassroomScene() {
             </div>
             {/* Hinges */}
             <div className="absolute left-1.5 top-3 w-1.5 h-2 rounded-sm bg-[#c8a030]/60" />
-            <div className="absolute left-1.5 bottom-7 w-1.5 h-2 rounded-sm bg-[#c8a030]/60" />
+            <div className="absolute left-1.5 bottom-8 w-1.5 h-2 rounded-sm bg-[#c8a030]/60" />
           </div>
         </div>
 
-        {/* Clock — top-right */}
-        <div className="absolute top-4 right-6 w-12 h-12 rounded-full bg-[#f5efe0] border-2 border-[#8b6914]/50 shadow-sm">
+        {/* Clock — upper-left, above door */}
+        <div className="absolute top-4 left-24 w-12 h-12 rounded-full bg-[#f5efe0] border-2 border-[#8b6914]/50 shadow-sm">
           {/* Hour markers */}
           {[0, 60, 120, 180, 240, 300].map((deg) => (
             <div
@@ -247,8 +264,8 @@ function ClassroomScene() {
           <div className="absolute top-1/2 left-1/2 w-1.5 h-1.5 rounded-full bg-[#3a2a0a]" style={{ transform: 'translate(-50%, -50%)' }} />
         </div>
 
-        {/* Window — right side, below the clock */}
-        <div className="absolute top-20 right-4 w-24 h-24 rounded-sm border-[3px] border-[#8b6914]/50 shadow-md overflow-hidden">
+        {/* Window — right side */}
+        <div className="absolute top-1/2 -translate-y-1/2 right-8 w-24 h-28 rounded-sm border-[3px] border-[#8b6914]/50 shadow-md overflow-hidden">
           <div className="absolute inset-0 bg-[#c8e8f8]" />
           {/* 2×2 panes */}
           <div className="absolute inset-0 pointer-events-none">
@@ -297,11 +314,12 @@ function ClassroomScene() {
         {/* Dot avatar */}
         <div
           className={cn(
-            'absolute transition-all duration-700',
-            dotPosition[phase] ?? 'bottom-10 left-1/2 -translate-x-1/2',
+            'absolute transition-all',
+            isWalking ? 'duration-[1200ms]' : 'duration-700',
+            walkTargetPos ?? dotPosition[phase] ?? 'bottom-10 left-1/2 -translate-x-1/2',
           )}
         >
-          <DotAvatar state={dotAnimState} size="md" />
+          <DotAvatar state={isWalking ? 'walking' : dotAnimState} facing={dotFacing} size="md" />
         </div>
       </div>
     </div>

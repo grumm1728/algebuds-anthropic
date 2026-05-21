@@ -18,7 +18,7 @@ export type SessionPhase =
   | 'home'                 // D1: full home state
 
 // ── Dot anim ───────────────────────────────────────────────────────────────────
-export type DotAnimState = 'idle' | 'thinking' | 'celebrating'
+export type DotAnimState = 'idle' | 'thinking' | 'celebrating' | 'walking'
 
 // ── Knowledge state (internal only, never shown to student) ───────────────────
 export type Misconception = {

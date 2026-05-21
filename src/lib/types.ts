@@ -90,7 +90,7 @@ export type TeachMessage = {
   text: string
 }
 
-export type ExplanationQuality = 'vague' | 'procedural' | 'conceptual'
+export type ExplanationQuality = 'vague' | 'procedural' | 'conceptual' | 'disengaged'
 
 export type EvaluationResult = {
   quality: ExplanationQuality

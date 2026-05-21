@@ -126,6 +126,46 @@ function NotebookObject({
   )
 }
 
+function KnowledgeDebugPanel() {
+  const { knowledge } = useDotStore()
+  const [open, setOpen] = useState(false)
+  if (!process.env.NEXT_PUBLIC_GIT_BRANCH) return null
+  return (
+    <div className="absolute top-8 right-2 z-50 flex flex-col items-end gap-1">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="bg-black/40 text-white/70 text-[10px] font-mono px-2 py-0.5 rounded select-none"
+      >
+        {open ? '✕ knowledge' : '⚙ knowledge'}
+      </button>
+      {open && (
+        <div className="bg-black/70 text-[10px] font-mono rounded p-2 flex flex-col gap-1 max-w-[220px]">
+          <div className="text-white/50 uppercase tracking-wide">misconceptions</div>
+          {knowledge.misconceptions.length === 0
+            ? <span className="text-green-400">none</span>
+            : knowledge.misconceptions.map(m => (
+                <span key={m.id} className="text-red-400">{m.id}</span>
+              ))
+          }
+          <div className="text-white/50 uppercase tracking-wide mt-1">gaps</div>
+          {knowledge.gaps.length === 0
+            ? <span className="text-green-400">none</span>
+            : knowledge.gaps.map(g => (
+                <span key={g.id} className="text-amber-400">{g.id}</span>
+              ))
+          }
+          {knowledge.taughtConcepts.length > 0 && <>
+            <div className="text-white/50 uppercase tracking-wide mt-1">taught</div>
+            {knowledge.taughtConcepts.map((c, i) => (
+              <span key={i} className="text-green-400 truncate">{c}</span>
+            ))}
+          </>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ClassroomScene() {
   const { phase, openNotebook, helpDot, dotAnimState } = useDotStore()
 
@@ -151,6 +191,13 @@ function ClassroomScene() {
 
   return (
     <div className="relative flex flex-col h-full overflow-hidden">
+      {/* Dev overlay: branch + live knowledge panel */}
+      {process.env.NEXT_PUBLIC_GIT_BRANCH && (
+        <div className="absolute top-2 right-2 z-50 bg-black/40 text-white/70 text-[10px] font-mono px-2 py-0.5 rounded pointer-events-none select-none">
+          {process.env.NEXT_PUBLIC_GIT_BRANCH}
+        </div>
+      )}
+      <KnowledgeDebugPanel />
       {/* Wall — taller to accommodate bigger chalkboard + wall details */}
       <div className="h-[56%] bg-[#d4b896] relative flex flex-col items-center justify-center pb-4">
 

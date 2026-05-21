@@ -181,8 +181,10 @@ export function DotProvider({ children }: { children: ReactNode }) {
   const [chatVisible, setChatVisible] = useState(false)
   const [onboardingCount, setOnboardingCount] = useState(0)
   const [perProblemExchangeCount, setPerProblemExchangeCount] = useState(0)
+  const [disengagedCount, setDisengagedCount] = useState(0)
   const [homeworkLines, setHomeworkLines] = useState<HomeworkLine[]>(INITIAL_HOMEWORK)
   const [problemBlocks, setProblemBlocks] = useState<ProblemBlock[]>([])
+  const [currentScriptedAttempt, setCurrentScriptedAttempt] = useState<{ steps: string[]; answer: string } | null>(null)
 
   const bufferRef = useRef('')
   const currentProblem = ALGEBRA_PROBLEMS[currentProblemIndex] ?? null
@@ -199,6 +201,7 @@ export function DotProvider({ children }: { children: ReactNode }) {
       knowledgeState: KnowledgeState,
       currentPhase: SessionPhase,
       problem: AlgebraProblem | null,
+      lastAttempt: { steps: string[]; answer: string } | null = null,
     ): Promise<string> => {
       setIsStreaming(true)
       setDotAnimState('thinking')
@@ -215,6 +218,7 @@ export function DotProvider({ children }: { children: ReactNode }) {
             knowledge: knowledgeState,
             phase: currentPhase,
             problem,
+            lastAttempt,
           }),
         })
         if (!res.ok || !res.body) throw new Error(`Chat failed: ${res.status}`)
@@ -317,6 +321,7 @@ export function DotProvider({ children }: { children: ReactNode }) {
 
     setCurrentProblemIndex(nextIndex)
     setPerProblemExchangeCount(0)
+    setDisengagedCount(0)
 
     // Compute injected knowledge synchronously so we can use it for attempt selection
     const existingMisconceptionIds = new Set(knowledge.misconceptions.map((m) => m.id))
@@ -344,6 +349,8 @@ export function DotProvider({ children }: { children: ReactNode }) {
     const scripted = options.find(
       (o) => !o.ifMisconceptionsActive || o.ifMisconceptionsActive.every((id) => activeIds.has(id))
     ) ?? options[options.length - 1]
+    console.log('[advance]', nextProblem.id, '| activeIds:', [...activeIds], '| selected answer:', scripted.answer)
+    setCurrentScriptedAttempt({ steps: scripted.steps, answer: scripted.answer })
 
     await new Promise((r) => setTimeout(r, 900))
 
@@ -447,6 +454,7 @@ export function DotProvider({ children }: { children: ReactNode }) {
     const scripted = options.find(
       (o) => !o.ifMisconceptionsActive || o.ifMisconceptionsActive.every((id) => activeIds.has(id))
     ) ?? options[options.length - 1]
+    setCurrentScriptedAttempt({ steps: scripted.steps, answer: scripted.answer })
     const id = newAttemptId()
 
     setProblemBlocks([{
@@ -506,21 +514,43 @@ export function DotProvider({ children }: { children: ReactNode }) {
         setPerProblemExchangeCount(newPerCount)
 
         let updatedKnowledge = knowledge
+        let quality = 'vague'
         try {
           const evaluation = await evaluateExplanation(text, knowledge, currentProblem!)
           updatedKnowledge = evaluation.updatedKnowledge
+          quality = evaluation.quality
+          console.log('[knowledge] quality:', quality)
+          console.log('[knowledge] before:', knowledge.misconceptions.map(m => m.id), knowledge.gaps.map(g => g.id))
+          console.log('[knowledge] after:', updatedKnowledge.misconceptions.map(m => m.id), updatedKnowledge.gaps.map(g => g.id))
           setKnowledge(updatedKnowledge)
         } catch (err) {
           console.error('Evaluation error:', err)
         }
 
-        await streamDotResponse(nextMessages, updatedKnowledge, 'core-teach', currentProblem)
+        if (quality === 'disengaged') {
+          const newCount = disengagedCount + 1
+          setDisengagedCount(newCount)
+          // Dot responds naturally — her drawing-pattern personality handles the pivot
+          await streamDotResponse(nextMessages, updatedKnowledge, 'core-teach', currentProblem, currentScriptedAttempt)
+          if (newCount >= 2) {
+            await new Promise((r) => setTimeout(r, 800))
+            addDotMessage("hmm... ok!! let me just try a different one from my notebook — maybe this problem will click better later!!")
+            setDisengagedCount(0)
+            const nextIndex = currentProblemIndex + 1
+            if (nextIndex < ALGEBRA_PROBLEMS.length) {
+              await advanceWorkspaceToProblem(nextIndex)
+            }
+          }
+        } else {
+          setDisengagedCount(0)
+          await streamDotResponse(nextMessages, updatedKnowledge, 'core-teach', currentProblem, currentScriptedAttempt)
+        }
       }
     },
     [
-      phase, messages, knowledge, currentProblem,
-      onboardingCount, perProblemExchangeCount,
-      streamDotResponse, evaluateExplanation,
+      phase, messages, knowledge, currentProblem, currentProblemIndex,
+      onboardingCount, perProblemExchangeCount, disengagedCount, currentScriptedAttempt,
+      streamDotResponse, evaluateExplanation, advanceWorkspaceToProblem, addDotMessage,
     ],
   )
 

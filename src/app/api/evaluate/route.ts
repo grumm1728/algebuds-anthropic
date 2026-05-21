@@ -24,12 +24,14 @@ export async function POST(req: Request) {
   const client = new Anthropic({ apiKey })
 
   const response = await client.messages.create({
-    model: 'claude-sonnet-4-5',
+    model: 'claude-haiku-4-5-20251001',
     max_tokens: 512,
     messages: [{ role: 'user', content: evaluatorPrompt }],
   })
 
   const raw = response.content[0].type === 'text' ? response.content[0].text : '{}'
+  console.log('[eval] explanation:', studentExplanation)
+  console.log('[eval] raw:', raw)
 
   let parsed: {
     quality: string
@@ -41,7 +43,8 @@ export async function POST(req: Request) {
   }
 
   try {
-    parsed = JSON.parse(raw)
+    const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+    parsed = JSON.parse(cleaned)
   } catch {
     // Fallback if Claude returns invalid JSON
     parsed = {
@@ -54,14 +57,26 @@ export async function POST(req: Request) {
     }
   }
 
-  // Quality-gated knowledge removal:
-  //   conceptual → remove from both misconceptions and gaps
-  //   procedural → remove from misconceptions only; gaps persist (knows the step, not the why)
-  //   vague      → no removal
-  const isConceptual = parsed.quality === 'conceptual'
-  const isProcedural = parsed.quality === 'procedural'
+  console.log('[eval] quality:', parsed.quality, '| misconceptionsAddressed:', parsed.misconceptionsAddressed, '| gapsAddressed:', parsed.gapsAddressed)
 
-  const updatedMisconceptions = (isConceptual || isProcedural)
+  // If the evaluator marks disengaged but still flagged misconceptions, that's contradictory —
+  // upgrade to vague so the misconception removal actually runs.
+  const effectiveQuality =
+    parsed.quality === 'disengaged' && parsed.misconceptionsAddressed.length > 0
+      ? 'vague'
+      : parsed.quality
+
+  console.log('[eval] effectiveQuality:', effectiveQuality)
+
+  // Quality-gated knowledge removal:
+  //   conceptual  → remove from both misconceptions and gaps
+  //   procedural  → remove from misconceptions only (knows the step, not the why)
+  //   vague       → remove from misconceptions only (on-topic but imprecise — same gate as procedural)
+  //   disengaged  → no removal
+  const isConceptual = effectiveQuality === 'conceptual'
+  const isAtLeastProcedural = effectiveQuality === 'procedural' || effectiveQuality === 'vague'
+
+  const updatedMisconceptions = (isConceptual || isAtLeastProcedural)
     ? knowledge.misconceptions.filter((m) => !parsed.misconceptionsAddressed.includes(m.id))
     : knowledge.misconceptions
 
@@ -71,7 +86,7 @@ export async function POST(req: Request) {
 
   // Newly taught concepts — only record what was actually removed
   const removedGapIds = isConceptual ? parsed.gapsAddressed : []
-  const removedMisconceptionIds = (isConceptual || isProcedural) ? parsed.misconceptionsAddressed : []
+  const removedMisconceptionIds = (isConceptual || isAtLeastProcedural) ? parsed.misconceptionsAddressed : []
 
   const newlyCovered = [
     ...removedGapIds.map(
@@ -95,6 +110,8 @@ export async function POST(req: Request) {
     seenMisconceptionIds: knowledge.seenMisconceptionIds,
     seenGapIds: knowledge.seenGapIds,
   }
+
+  console.log('[eval] knowledge after:', { misconceptions: updatedKnowledge.misconceptions.map(m => m.id), gaps: updatedKnowledge.gaps.map(g => g.id) })
 
   const result: EvaluationResult = {
     quality: parsed.quality as EvaluationResult['quality'],

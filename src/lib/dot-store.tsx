@@ -1,6 +1,6 @@
 'use client'
 
-import {
+import React, {
   createContext,
   useCallback,
   useContext,
@@ -16,10 +16,11 @@ import type {
   AlgebraProblem,
   EvaluationResult,
   HomeworkLine,
-  WorkLine,
-  QuizItem,
+  ProblemBlock,
+  WorkAttempt,
+  AttemptVerdict,
 } from './types'
-import { ALGEBRA_PROBLEMS, INITIAL_KNOWLEDGE, INITIAL_HOMEWORK, INITIAL_QUIZ } from './problems'
+import { ALGEBRA_PROBLEMS, INITIAL_KNOWLEDGE, INITIAL_HOMEWORK, ALL_MISCONCEPTIONS, ALL_GAPS } from './problems'
 
 // ── Scripted content ───────────────────────────────────────────────────────────
 
@@ -30,28 +31,50 @@ const ALGEBRA_INTRO = (problem: AlgebraProblem, wrongAnswer: string) =>
   `ok!! my teacher also gave us algebra — equations with x. I tried this one: ${problem.equation}. I got ${wrongAnswer}. marked wrong. what am I doing wrong?`
 
 const FIRST_ATTEMPTS: Record<string, string> = {
-  p1: 'x = 17 (moved the 5 over and added it)',
-  p2: 'x = 18 (moved the 3 over and added)',
-  p3: 'x = 5 (divided by 3)',
-  p4: 'x = 9.5 (divided 19 by 2 first)',
-  p5: 'x = 9 (divided 18 by 2 first)',
+  p1:  'x = 17 (moved the 5 over and added it)',
+  p1b: 'x = 6 (moved the 3 over but kept subtracting)',
+  p2:  'x = 18 (moved the 3 over and added)',
+  p3:  'x = 5 (divided by 3)',
+  p4:  'x = 9.5 (divided 19 by 2 first)',
+  p5:  'x = 9 (divided 18 by 2 first)',
+  p6:  'x = 5.5 (multiplied the x but forgot about the 3 inside the parentheses)',
 }
 
-// Concise wrong attempt for left page display
-const PAGE_ATTEMPTS: Record<string, string> = {
-  p1: 'x = 17  ← moved the 5, then added',
-  p2: 'x = 18  ← moved the 3, then added',
-  p3: 'x = 5   ← divided both sides by 3',
-  p4: 'x = 9.5 ← divided 19 by 2 first',
-  p5: 'x = 9   ← divided 18 by 2 first',
+// Scripted first attempts — shown when the workbook opens and on each new problem.
+// Each problem has ordered options; first whose ifMisconceptionsActive are all met wins.
+// Last entry in each array is the unconditional default.
+type ScriptedAttemptOption = {
+  steps: string[]
+  answer: string
+  ifMisconceptionsActive?: string[]
 }
 
-const QUIZ_READY_MESSAGE =
-  "ok!! I think I'm ready to show you what I've learned! can I do a little quiz? like actually try some problems on my own??"
-
-const QUIZ_DONE_MESSAGES = {
-  good: "I got most of them!! the ones with fractions are still a bit wobbly 🐢 but I can see how much the balance thing helped! which ones did I get wrong?",
-  mixed: "some of these were tricky!! I got confused on the two-step ones again... I think I need more practice with those. did I at least get the easy ones right?",
+const SCRIPTED_FIRST_ATTEMPTS: Record<string, ScriptedAttemptOption[]> = {
+  p1: [
+    { steps: ['x + 5 = 12', 'x = 12 + 5'], answer: 'x = 17' },
+  ],
+  p1b: [
+    { ifMisconceptionsActive: ['move-dont-balance'], steps: ['x - 3 = 9', 'x = 9 - 3'], answer: 'x = 6' },
+    { steps: ['x - 3 = 9', 'x - 3 + 3 = 9 + 3'], answer: 'x = 12' }, // balance learned — correct!
+  ],
+  p2: [
+    { ifMisconceptionsActive: ['move-dont-balance'], steps: ['3x = 15', 'x = 15 + 3'], answer: 'x = 18' },
+    { steps: ['3x = 15', '3x - 3 = 15 - 3'], answer: 'x = 12' }, // balanced but wrong op
+  ],
+  p3: [
+    { steps: ['(1/3)x = 15', 'x = 15 ÷ 3'], answer: 'x = 5' },
+  ],
+  p4: [
+    { ifMisconceptionsActive: ['move-dont-balance'], steps: ['2x - 3 = 19', '2x = 19', 'x = 19 ÷ 2'], answer: 'x = 9.5' },
+    { steps: ['2x - 3 = 19', '2x - 3 ÷ 2 = 19 ÷ 2', 'x - 3 = 9.5', 'x = 12.5'], answer: 'x = 12.5' }, // undo-order only
+  ],
+  p5: [
+    { ifMisconceptionsActive: ['move-dont-balance'], steps: ['2x - 3 = 18', '2x = 18', 'x = 18 ÷ 2'], answer: 'x = 9' },
+    { steps: ['2x - 3 = 18', '2x - 3 ÷ 2 = 18 ÷ 2', 'x - 3 = 9', 'x = 12'], answer: 'x = 12' }, // undo-order only
+  ],
+  p6: [
+    { steps: ['2(x + 3) = 14', '2x + 3 = 14', '2x = 11'], answer: 'x = 5.5' },
+  ],
 }
 
 const COMPLETE_MESSAGE =
@@ -60,14 +83,64 @@ const COMPLETE_MESSAGE =
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 let msgCounter = 0
-function genId() { return `msg-${Date.now()}-${msgCounter++}` }
-function lineId() { return `line-${Date.now()}-${msgCounter++}` }
+function genId()     { return `msg-${Date.now()}-${msgCounter++}` }
+function newAttemptId() { return `attempt-${Date.now()}-${msgCounter++}` }
 
 function toApiMessages(msgs: TeachMessage[]) {
   return msgs.map((m) => ({
     role: (m.sender === 'dot' ? 'assistant' : 'user') as 'user' | 'assistant',
     content: m.text,
   }))
+}
+
+// Animates a WorkAttempt into view one line at a time.
+// Adds steps sequentially, then the answer, then starts the verdict timer.
+function animateAttemptLines(
+  setProblemBlocks: React.Dispatch<React.SetStateAction<ProblemBlock[]>>,
+  blockId: string,
+  attemptId: string,
+  steps: string[],
+  answer: string,
+  onTimerStart?: () => void,
+  delayMs = 280,
+) {
+  steps.forEach((step, i) => {
+    setTimeout(() => {
+      setProblemBlocks((prev) => prev.map((b) =>
+        b.id !== blockId ? b : {
+          ...b,
+          attempts: b.attempts.map((a) =>
+            a.id !== attemptId ? a : { ...a, steps: [...a.steps, step] }
+          ),
+        }
+      ))
+    }, (i + 1) * delayMs)
+  })
+
+  // Answer appears after all steps
+  setTimeout(() => {
+    setProblemBlocks((prev) => prev.map((b) =>
+      b.id !== blockId ? b : {
+        ...b,
+        attempts: b.attempts.map((a) =>
+          a.id !== attemptId ? a : { ...a, answer }
+        ),
+      }
+    ))
+  }, (steps.length + 1) * delayMs)
+
+  // Verdict timer starts one beat after answer
+  setTimeout(() => {
+    setProblemBlocks((prev) => prev.map((b) =>
+      b.id !== blockId ? b : {
+        ...b,
+        attempts: b.attempts.map((a) =>
+          a.id !== attemptId ? a : { ...a, verdict: 'timing' as AttemptVerdict }
+        ),
+      }
+    ))
+    onTimerStart?.()
+  }, (steps.length + 2) * delayMs)
 }
 
 // ── Store type ────────────────────────────────────────────────────────────────
@@ -80,19 +153,16 @@ type DotStoreType = {
   dotAnimState: DotAnimState
   isStreaming: boolean
   streamBuffer: string
-  dotIsTyping: boolean   // true between segmented messages
+  dotIsTyping: boolean
   chatVisible: boolean
-  canTriggerQuiz: boolean
   homeworkLines: HomeworkLine[]
-  algebraLines: WorkLine[]
-  quizItems: QuizItem[]
+  problemBlocks: ProblemBlock[]
   openNotebook: () => void
   sendMessage: (text: string) => Promise<void>
-  triggerQuiz: () => void
-  beginQuiz: () => void
+  resolveVerdict: (problemId: string, attemptId: string, answer: string) => void
   proceedToNext: () => void
   helpDot: () => void
-  redoQuiz: () => void
+  skipOnboarding: () => void
 }
 
 const DotContext = createContext<DotStoreType | null>(null)
@@ -109,13 +179,12 @@ export function DotProvider({ children }: { children: ReactNode }) {
   const [streamBuffer, setStreamBuffer] = useState('')
   const [dotIsTyping, setDotIsTyping] = useState(false)
   const [chatVisible, setChatVisible] = useState(false)
-  const [canTriggerQuiz, setCanTriggerQuiz] = useState(false)
   const [onboardingCount, setOnboardingCount] = useState(0)
-  const [coreExchangeCount, setCoreExchangeCount] = useState(0)
   const [perProblemExchangeCount, setPerProblemExchangeCount] = useState(0)
+  const [disengagedCount, setDisengagedCount] = useState(0)
   const [homeworkLines, setHomeworkLines] = useState<HomeworkLine[]>(INITIAL_HOMEWORK)
-  const [algebraLines, setAlgebraLines] = useState<WorkLine[]>([])
-  const [quizItems, setQuizItems] = useState<QuizItem[]>(INITIAL_QUIZ)
+  const [problemBlocks, setProblemBlocks] = useState<ProblemBlock[]>([])
+  const [currentScriptedAttempt, setCurrentScriptedAttempt] = useState<{ steps: string[]; answer: string } | null>(null)
 
   const bufferRef = useRef('')
   const currentProblem = ALGEBRA_PROBLEMS[currentProblemIndex] ?? null
@@ -132,6 +201,7 @@ export function DotProvider({ children }: { children: ReactNode }) {
       knowledgeState: KnowledgeState,
       currentPhase: SessionPhase,
       problem: AlgebraProblem | null,
+      lastAttempt: { steps: string[]; answer: string } | null = null,
     ): Promise<string> => {
       setIsStreaming(true)
       setDotAnimState('thinking')
@@ -148,6 +218,7 @@ export function DotProvider({ children }: { children: ReactNode }) {
             knowledge: knowledgeState,
             phase: currentPhase,
             problem,
+            lastAttempt,
           }),
         })
         if (!res.ok || !res.body) throw new Error(`Chat failed: ${res.status}`)
@@ -157,7 +228,6 @@ export function DotProvider({ children }: { children: ReactNode }) {
             const { done, value } = await reader.read()
             if (done) break
             bufferRef.current += value
-            // Keep raw buffer (with |||) — ChatFeed clips to the first segment
             setStreamBuffer(bufferRef.current)
           }
         } finally { reader.releaseLock() }
@@ -167,23 +237,56 @@ export function DotProvider({ children }: { children: ReactNode }) {
         setIsStreaming(false)
       }
 
-      // Split on ||| and deliver segments with typing delays
       const segments = fullText.split('|||').map((s) => s.trim()).filter(Boolean)
       if (segments.length === 0) {
         setDotAnimState('idle')
         return fullText
       }
 
-      addDotMessage(segments[0])
+      // Extract [WORK:...] from a segment, append a new attempt to the current
+      // problem block, then deliver the clean chat text.
+      const deliverSegment = (seg: string) => {
+        const workMatch = seg.match(/\[WORK:([^\]]+)\]/)
+        const cleanText = seg.replace(/\[WORK:[^\]]*\]/, '').trim()
+
+        if (workMatch) {
+          const parts = workMatch[1].split('|').map((p) => p.trim()).filter(Boolean)
+          // parts[0] = equation (already shown as block header — skip)
+          // parts[1..n-2] = intermediate steps
+          // parts[n-1] = answer ('???' when Dot is stuck)
+          if (parts.length >= 2 && problem) {
+            const steps = parts.slice(1, parts.length - 1)
+            const answer = parts[parts.length - 1]
+            const id = newAttemptId()
+
+            // Add empty attempt shell first, then animate lines in
+            setProblemBlocks((prev) => {
+              if (prev.length === 0) return prev
+              const last = prev[prev.length - 1]
+              const newAttempt: WorkAttempt = { id, steps: [], answer: null, verdict: null }
+              return [
+                ...prev.slice(0, -1),
+                { ...last, attempts: [...last.attempts, newAttempt] },
+              ]
+            })
+
+            animateAttemptLines(setProblemBlocks, problem.id, id, steps, answer)
+          }
+        }
+
+        if (cleanText) addDotMessage(cleanText)
+      }
+
+      deliverSegment(segments[0])
 
       for (let i = 1; i < segments.length; i++) {
         const seg = segments[i]
-        // Delay proportional to segment length — feels like live typing
-        const typingMs = Math.min(900 + seg.length * 28, 3800)
+        const visibleLen = seg.replace(/\[WORK:[^\]]*\]/, '').length
+        const typingMs = Math.min(900 + visibleLen * 28, 3800)
         setDotIsTyping(true)
         await new Promise((r) => setTimeout(r, typingMs))
         setDotIsTyping(false)
-        addDotMessage(seg)
+        deliverSegment(seg)
       }
 
       setDotAnimState('idle')
@@ -210,8 +313,7 @@ export function DotProvider({ children }: { children: ReactNode }) {
   )
 
   // ── advanceWorkspaceToProblem ─────────────────────────────────────────────
-  // Updates the workspace to show the next problem + Dot's (wrong) attempt,
-  // stays in core-teach phase. Used by both auto-advance and the helpDot button.
+  // Appends a new ProblemBlock for the next problem with its scripted first attempt.
 
   const advanceWorkspaceToProblem = useCallback(async (nextIndex: number) => {
     const nextProblem = ALGEBRA_PROBLEMS[nextIndex]
@@ -219,25 +321,102 @@ export function DotProvider({ children }: { children: ReactNode }) {
 
     setCurrentProblemIndex(nextIndex)
     setPerProblemExchangeCount(0)
-    setCanTriggerQuiz(false)
+    setDisengagedCount(0)
 
-    // Write new equation to workspace
+    // Compute injected knowledge synchronously so we can use it for attempt selection
+    const existingMisconceptionIds = new Set(knowledge.misconceptions.map((m) => m.id))
+    const existingGapIds = new Set(knowledge.gaps.map((g) => g.id))
+    const newMisconceptions = nextProblem.targetMisconceptions
+      .filter((id) => !existingMisconceptionIds.has(id) && !knowledge.seenMisconceptionIds.includes(id))
+      .map((id) => ALL_MISCONCEPTIONS.find((m) => m.id === id))
+      .filter((m): m is NonNullable<typeof m> => m !== undefined)
+    const newGaps = nextProblem.targetGaps
+      .filter((id) => !existingGapIds.has(id) && !knowledge.seenGapIds.includes(id))
+      .map((id) => ALL_GAPS.find((g) => g.id === id))
+      .filter((g): g is NonNullable<typeof g> => g !== undefined)
+    const injectedKnowledge: KnowledgeState = {
+      ...knowledge,
+      misconceptions: [...knowledge.misconceptions, ...newMisconceptions],
+      gaps: [...knowledge.gaps, ...newGaps],
+      seenMisconceptionIds: [...knowledge.seenMisconceptionIds, ...newMisconceptions.map((m) => m.id)],
+      seenGapIds: [...knowledge.seenGapIds, ...newGaps.map((g) => g.id)],
+    }
+    setKnowledge(injectedKnowledge)
+
+    // Select the scripted attempt appropriate for current knowledge state
+    const activeIds = new Set(injectedKnowledge.misconceptions.map((m) => m.id))
+    const options = SCRIPTED_FIRST_ATTEMPTS[nextProblem.id]
+    const scripted = options.find(
+      (o) => !o.ifMisconceptionsActive || o.ifMisconceptionsActive.every((id) => activeIds.has(id))
+    ) ?? options[options.length - 1]
+    console.log('[advance]', nextProblem.id, '| activeIds:', [...activeIds], '| selected answer:', scripted.answer)
+    setCurrentScriptedAttempt({ steps: scripted.steps, answer: scripted.answer })
+
     await new Promise((r) => setTimeout(r, 900))
-    setAlgebraLines([{ id: lineId(), text: nextProblem.equation, style: 'equation' }])
 
-    // Then Dot's wrong attempt
-    await new Promise((r) => setTimeout(r, 800))
-    setAlgebraLines((prev) => [
+    const id = newAttemptId()
+
+    setProblemBlocks((prev) => [
       ...prev,
-      { id: lineId(), text: PAGE_ATTEMPTS[nextProblem.id], style: 'wrong-attempt' },
+      {
+        id: nextProblem.id,
+        equation: nextProblem.equation,
+        attempts: [{ id, steps: [], answer: null, verdict: null }],
+      },
     ])
 
-    // Dot's scripted chat message pointing to the notebook
+    animateAttemptLines(setProblemBlocks, nextProblem.id, id, scripted.steps, scripted.answer)
+
     await new Promise((r) => setTimeout(r, 500))
+    const isCorrectAttempt = scripted.answer === nextProblem.answer
     addDotMessage(
-      `ooh wait!! I want to try using that on a new problem to see if I really get it — I wrote my attempt in the notebook! can you check if I did it right?`,
+      isCorrectAttempt
+        ? `ooh wait!! I tried ${nextProblem.equation} and I think I got it!! your teaching is working — can you check my work?`
+        : `ooh wait!! I want to try that on a new one — ${nextProblem.equation}!! I wrote my attempt in the notebook, can you check if I did it right?`,
     )
-  }, [addDotMessage])
+  }, [addDotMessage, knowledge])
+
+  // ── resolveVerdict ────────────────────────────────────────────────────────
+  // Called by the UI after the 5-second countdown finishes.
+  // answer is passed in directly (the UI already has it) to avoid stale closure issues.
+
+  const resolveVerdict = useCallback((problemId: string, attemptId: string, answer: string) => {
+    const problem = ALGEBRA_PROBLEMS.find((p) => p.id === problemId)
+    if (!problem) return
+
+    const isCorrect = answer !== '???' && answer === problem.answer
+    const verdict: AttemptVerdict = isCorrect ? 'correct' : 'wrong'
+
+    setProblemBlocks((prev) =>
+      prev.map((b) =>
+        b.id === problemId
+          ? {
+              ...b,
+              attempts: b.attempts.map((a) =>
+                a.id === attemptId ? { ...a, verdict } : a
+              ),
+            }
+          : b
+      )
+    )
+
+    if (isCorrect) {
+      const idx = ALGEBRA_PROBLEMS.findIndex((p) => p.id === problemId)
+      setTimeout(() => {
+        const nextIdx = idx + 1
+        if (nextIdx < ALGEBRA_PROBLEMS.length) {
+          advanceWorkspaceToProblem(nextIdx)
+        } else {
+          setDotAnimState('celebrating')
+          addDotMessage(COMPLETE_MESSAGE)
+          setTimeout(() => {
+            setDotAnimState('idle')
+            setPhase('home')
+          }, 2000)
+        }
+      }, 600)
+    }
+  }, [advanceWorkspaceToProblem, addDotMessage])
 
   // ── openNotebook ───────────────────────────────────────────────────────────
 
@@ -245,7 +424,6 @@ export function DotProvider({ children }: { children: ReactNode }) {
     setChatVisible(true)
     setPhase('onboarding-writing')
 
-    // Write answers line by line — fast (3s total)
     INITIAL_HOMEWORK.forEach((_, i) => {
       setTimeout(() => {
         setHomeworkLines((prev) =>
@@ -256,12 +434,10 @@ export function DotProvider({ children }: { children: ReactNode }) {
 
     const totalWriteMs = INITIAL_HOMEWORK.length * 300 + 400
     setTimeout(() => {
-      // Mark wrong ones with red dots
       setPhase('onboarding-graded')
       setHomeworkLines((prev) =>
         prev.map((l) => ({ ...l, state: l.isCorrect ? 'written' : 'marked' }))
       )
-      // Then fire Dot's opening message
       setTimeout(() => {
         addDotMessage(OPENING_MESSAGE)
         setPhase('onboarding-teach')
@@ -272,16 +448,27 @@ export function DotProvider({ children }: { children: ReactNode }) {
   const openAlgebraNotebook = useCallback(() => {
     const problem = ALGEBRA_PROBLEMS[currentProblemIndex]
     setPhase('core-writing')
-    setAlgebraLines([{ id: lineId(), text: problem.equation, style: 'equation' }])
 
-    setTimeout(() => {
-      setAlgebraLines((prev) => [
-        ...prev,
-        { id: lineId(), text: PAGE_ATTEMPTS[problem.id], style: 'wrong-attempt' },
-      ])
-      setTimeout(() => setPhase('core-teach'), 600)
-    }, 1000)
-  }, [currentProblemIndex])
+    const activeIds = new Set(knowledge.misconceptions.map((m) => m.id))
+    const options = SCRIPTED_FIRST_ATTEMPTS[problem.id]
+    const scripted = options.find(
+      (o) => !o.ifMisconceptionsActive || o.ifMisconceptionsActive.every((id) => activeIds.has(id))
+    ) ?? options[options.length - 1]
+    setCurrentScriptedAttempt({ steps: scripted.steps, answer: scripted.answer })
+    const id = newAttemptId()
+
+    setProblemBlocks([{
+      id: problem.id,
+      equation: problem.equation,
+      attempts: [{ id, steps: [], answer: null, verdict: null }],
+    }])
+
+    // Transition to core-teach once the timer has started (all lines written in)
+    animateAttemptLines(
+      setProblemBlocks, problem.id, id, scripted.steps, scripted.answer,
+      () => setTimeout(() => setPhase('core-teach'), 400),
+    )
+  }, [currentProblemIndex, knowledge])
 
   const openNotebook = useCallback(() => {
     if (phase === 'landing') openHomeworkNotebook()
@@ -297,7 +484,6 @@ export function DotProvider({ children }: { children: ReactNode }) {
       setMessages(nextMessages)
 
       if (phase === 'onboarding-teach') {
-        // Conceptual explanation counts as the full 2-exchange threshold on its own
         const isConceptual = text.toLowerCase().includes('ones into') || text.toLowerCase().includes('ten and')
         const newCount = isConceptual ? 2 : onboardingCount + 1
         setOnboardingCount(newCount)
@@ -308,7 +494,6 @@ export function DotProvider({ children }: { children: ReactNode }) {
           setPhase('onboarding-correct')
           setDotAnimState('celebrating')
 
-          // Animate corrections
           const wrongOnes = INITIAL_HOMEWORK.filter((l) => !l.isCorrect)
           wrongOnes.forEach((line, i) => {
             setTimeout(() => {
@@ -325,93 +510,49 @@ export function DotProvider({ children }: { children: ReactNode }) {
         }
 
       } else if (phase === 'core-teach') {
-        // Global exchange counter — gates the quiz CTA
-        const nextExchangeCount = coreExchangeCount + 1
-        setCoreExchangeCount(nextExchangeCount)
-        if (currentProblemIndex >= 1 && nextExchangeCount >= 4) {
-          setCanTriggerQuiz(true)
-        }
-
-        // Per-problem count — triggers Dot trying the next problem
         const newPerCount = perProblemExchangeCount + 1
+        setPerProblemExchangeCount(newPerCount)
 
         let updatedKnowledge = knowledge
-        let evalQuality = 'vague'
+        let quality = 'vague'
         try {
           const evaluation = await evaluateExplanation(text, knowledge, currentProblem!)
           updatedKnowledge = evaluation.updatedKnowledge
-          evalQuality = evaluation.quality
+          quality = evaluation.quality
+          console.log('[knowledge] quality:', quality)
+          console.log('[knowledge] before:', knowledge.misconceptions.map(m => m.id), knowledge.gaps.map(g => g.id))
+          console.log('[knowledge] after:', updatedKnowledge.misconceptions.map(m => m.id), updatedKnowledge.gaps.map(g => g.id))
           setKnowledge(updatedKnowledge)
         } catch (err) {
           console.error('Evaluation error:', err)
         }
 
-        await streamDotResponse(nextMessages, updatedKnowledge, 'core-teach', currentProblem)
-
-        // After Dot responds: if enough teaching has happened on this problem,
-        // have her try the next one in the workspace
-        const nextIdx = currentProblemIndex + 1
-        const shouldAdvance =
-          newPerCount >= 2 &&
-          evalQuality !== 'vague' &&
-          nextIdx < ALGEBRA_PROBLEMS.length
-
-        if (shouldAdvance) {
-          await advanceWorkspaceToProblem(nextIdx)
+        if (quality === 'disengaged') {
+          const newCount = disengagedCount + 1
+          setDisengagedCount(newCount)
+          // Dot responds naturally — her drawing-pattern personality handles the pivot
+          await streamDotResponse(nextMessages, updatedKnowledge, 'core-teach', currentProblem, currentScriptedAttempt)
+          if (newCount >= 2) {
+            await new Promise((r) => setTimeout(r, 800))
+            addDotMessage("hmm... ok!! let me just try a different one from my notebook — maybe this problem will click better later!!")
+            setDisengagedCount(0)
+            const nextIndex = currentProblemIndex + 1
+            if (nextIndex < ALGEBRA_PROBLEMS.length) {
+              await advanceWorkspaceToProblem(nextIndex)
+            }
+          }
         } else {
-          setPerProblemExchangeCount(newPerCount)
+          setDisengagedCount(0)
+          await streamDotResponse(nextMessages, updatedKnowledge, 'core-teach', currentProblem, currentScriptedAttempt)
         }
       }
     },
     [
       phase, messages, knowledge, currentProblem, currentProblemIndex,
-      onboardingCount, coreExchangeCount, perProblemExchangeCount,
-      streamDotResponse, evaluateExplanation, advanceWorkspaceToProblem,
+      onboardingCount, perProblemExchangeCount, disengagedCount, currentScriptedAttempt,
+      streamDotResponse, evaluateExplanation, advanceWorkspaceToProblem, addDotMessage,
     ],
   )
-
-  // ── triggerQuiz ────────────────────────────────────────────────────────────
-
-  const triggerQuiz = useCallback(() => {
-    setCanTriggerQuiz(false)
-    addDotMessage(QUIZ_READY_MESSAGE)
-    setTimeout(() => setPhase('quiz-intro'), 800)
-  }, [addDotMessage])
-
-  // ── beginQuiz ─────────────────────────────────────────────────────────────
-
-  const beginQuiz = useCallback(() => {
-    if (phase !== 'quiz-intro') return
-    setPhase('quiz-writing')
-    setQuizItems(INITIAL_QUIZ.map((q) => ({ ...q, state: 'hidden' })))
-
-    const totalItems = INITIAL_QUIZ.length
-    const itemInterval = Math.floor(28000 / totalItems) // ~28s total
-
-    INITIAL_QUIZ.forEach((_, i) => {
-      setTimeout(() => {
-        setQuizItems((prev) =>
-          prev.map((q, idx) => idx === i ? { ...q, state: 'writing' } : q)
-        )
-        setTimeout(() => {
-          setQuizItems((prev) =>
-            prev.map((q, idx) => idx === i ? { ...q, state: 'done' } : q)
-          )
-        }, itemInterval * 0.6)
-      }, i * itemInterval)
-    })
-
-    setTimeout(() => {
-      setPhase('quiz-graded')
-      setDotAnimState('celebrating')
-      setQuizItems((prev) => prev.map((q) => ({ ...q, state: q.isCorrect ? 'done' : 'marked' })))
-      const wrongCount = INITIAL_QUIZ.filter((q) => !q.isCorrect).length
-      setTimeout(() => {
-        addDotMessage(wrongCount <= 3 ? QUIZ_DONE_MESSAGES.good : QUIZ_DONE_MESSAGES.mixed)
-        setDotAnimState('idle')
-      }, 700)
-    }, totalItems * itemInterval + 400)
-  }, [phase, addDotMessage])
 
   // ── proceedToNext ──────────────────────────────────────────────────────────
 
@@ -420,14 +561,8 @@ export function DotProvider({ children }: { children: ReactNode }) {
       setPhase('core-intro')
       const problem = ALGEBRA_PROBLEMS[0]
       setTimeout(() => addDotMessage(ALGEBRA_INTRO(problem, FIRST_ATTEMPTS[problem.id])), 300)
-    } else if (phase === 'quiz-graded') {
-      const nextIndex = currentProblemIndex + 1
-      if (nextIndex >= ALGEBRA_PROBLEMS.length) {
-        addDotMessage(COMPLETE_MESSAGE)
-      }
-      setPhase('home')
     }
-  }, [phase, currentProblemIndex, addDotMessage])
+  }, [phase, addDotMessage])
 
   // ── helpDot ────────────────────────────────────────────────────────────────
 
@@ -437,12 +572,16 @@ export function DotProvider({ children }: { children: ReactNode }) {
     advanceWorkspaceToProblem(nextIndex)
   }, [currentProblemIndex, advanceWorkspaceToProblem])
 
-  // ── redoQuiz ───────────────────────────────────────────────────────────────
+  // ── skipOnboarding (dev only) ──────────────────────────────────────────────
 
-  const redoQuiz = useCallback(() => {
-    setQuizItems(INITIAL_QUIZ.map((q) => ({ ...q, state: 'hidden' })))
-    setPhase('quiz-intro')
-  }, [])
+  const skipOnboarding = useCallback(() => {
+    setHomeworkLines(INITIAL_HOMEWORK.map((l) => ({ ...l, state: 'corrected' as const })))
+    setChatVisible(true)
+    setMessages([])
+    setPhase('core-intro')
+    const problem = ALGEBRA_PROBLEMS[0]
+    setTimeout(() => addDotMessage(ALGEBRA_INTRO(problem, FIRST_ATTEMPTS[problem.id])), 300)
+  }, [addDotMessage])
 
   return (
     <DotContext.Provider
@@ -456,17 +595,14 @@ export function DotProvider({ children }: { children: ReactNode }) {
         streamBuffer,
         dotIsTyping,
         chatVisible,
-        canTriggerQuiz,
         homeworkLines,
-        algebraLines,
-        quizItems,
+        problemBlocks,
         openNotebook,
         sendMessage,
-        triggerQuiz,
-        beginQuiz,
+        resolveVerdict,
         proceedToNext,
         helpDot,
-        redoQuiz,
+        skipOnboarding,
       }}
     >
       {children}

@@ -4,42 +4,29 @@ import { useEffect, useRef, useState } from 'react'
 import { useDotStore } from '@/lib/dot-store'
 import { DotAvatar } from '@/components/dot/DotAvatar'
 import { cn } from '@/lib/utils'
-import type { SessionPhase } from '@/lib/types'
+import type { SessionPhase, AttemptVerdict } from '@/lib/types'
 
 // ── Layout helper ─────────────────────────────────────────────────────────────
 
-function getLeftContent(phase: SessionPhase): 'classroom' | 'workbook' | 'quiz' {
-  if (['landing', 'core-intro', 'quiz-intro', 'core-quiz-prompt', 'home'].includes(phase))
-    return 'classroom'
-  if (phase === 'quiz-writing' || phase === 'quiz-graded') return 'quiz'
+function getLeftContent(phase: SessionPhase): 'classroom' | 'workbook' {
+  if (phase === 'landing' || phase === 'core-intro' || phase === 'home') return 'classroom'
   return 'workbook'
 }
 
 // ── Classroom scene ────────────────────────────────────────────────────────────
 
 function Chalkboard() {
-  const { phase, beginQuiz, redoQuiz } = useDotStore()
+  const { phase } = useDotStore()
 
   const text: Partial<Record<SessionPhase, string>> = {
     landing: 'Math Class',
     'core-intro': 'Solving Equations',
-    'core-quiz-prompt': 'Solving Equations',
-    'quiz-intro': "Begin Dot's Quiz",
-    'quiz-graded': "Quiz Done!",
-    home: 'Redo Quiz',
+    home: 'Great work!',
   }
-
-  const clickable = phase === 'quiz-intro' || phase === 'home'
-  const handleClick = phase === 'quiz-intro' ? beginQuiz : phase === 'home' ? redoQuiz : undefined
 
   return (
     <div
-      onClick={handleClick}
-      className={cn(
-        'w-[58%] ml-[18%] rounded-t-sm bg-[#2d5a27] px-6 pt-6 pb-10 text-center shadow-inner relative',
-        clickable &&
-          'cursor-pointer ring-2 ring-yellow-400 ring-offset-2 hover:bg-[#3a7a33] transition-colors',
-      )}
+      className="w-[58%] ml-[18%] rounded-t-sm bg-[#2d5a27] px-6 pt-6 pb-10 text-center shadow-inner relative"
     >
       <p className="font-mono text-[10px] text-[#c8e6c9]/50 mb-1 uppercase tracking-wider">
         today
@@ -47,9 +34,6 @@ function Chalkboard() {
       <p className="font-mono text-lg font-bold text-white">
         {text[phase] ?? 'Math Class'}
       </p>
-      {clickable && (
-        <p className="mt-1 text-xs text-yellow-300 animate-pulse">click to begin →</p>
-      )}
       {/* Faint prior equations in corners for lived-in feel */}
       <p className="absolute top-2 left-3 font-mono text-[9px] text-[#c8e6c9]/20 select-none">2x+3=7</p>
       <p className="absolute top-2 right-3 font-mono text-[9px] text-[#c8e6c9]/20 select-none">y=mx+b</p>
@@ -142,14 +126,52 @@ function NotebookObject({
   )
 }
 
+function KnowledgeDebugPanel() {
+  const { knowledge } = useDotStore()
+  const [open, setOpen] = useState(false)
+  if (!process.env.NEXT_PUBLIC_GIT_BRANCH) return null
+  return (
+    <div className="absolute top-8 right-2 z-50 flex flex-col items-end gap-1">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="bg-black/40 text-white/70 text-[10px] font-mono px-2 py-0.5 rounded select-none"
+      >
+        {open ? '✕ knowledge' : '⚙ knowledge'}
+      </button>
+      {open && (
+        <div className="bg-black/70 text-[10px] font-mono rounded p-2 flex flex-col gap-1 max-w-[220px]">
+          <div className="text-white/50 uppercase tracking-wide">misconceptions</div>
+          {knowledge.misconceptions.length === 0
+            ? <span className="text-green-400">none</span>
+            : knowledge.misconceptions.map(m => (
+                <span key={m.id} className="text-red-400">{m.id}</span>
+              ))
+          }
+          <div className="text-white/50 uppercase tracking-wide mt-1">gaps</div>
+          {knowledge.gaps.length === 0
+            ? <span className="text-green-400">none</span>
+            : knowledge.gaps.map(g => (
+                <span key={g.id} className="text-amber-400">{g.id}</span>
+              ))
+          }
+          {knowledge.taughtConcepts.length > 0 && <>
+            <div className="text-white/50 uppercase tracking-wide mt-1">taught</div>
+            {knowledge.taughtConcepts.map((c, i) => (
+              <span key={i} className="text-green-400 truncate">{c}</span>
+            ))}
+          </>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ClassroomScene() {
   const { phase, openNotebook, helpDot, dotAnimState } = useDotStore()
 
   const dotPosition: Partial<Record<SessionPhase, string>> = {
     landing: 'bottom-10 left-1/2 -translate-x-1/2',
     'core-intro': 'bottom-10 left-[28%]',
-    'quiz-intro': 'top-[40%] left-1/2 -translate-x-1/2',
-    'core-quiz-prompt': 'bottom-10 left-1/2 -translate-x-1/2',
     home: 'bottom-10 left-1/2 -translate-x-1/2',
   }
 
@@ -169,6 +191,13 @@ function ClassroomScene() {
 
   return (
     <div className="relative flex flex-col h-full overflow-hidden">
+      {/* Dev overlay: branch + live knowledge panel */}
+      {process.env.NEXT_PUBLIC_GIT_BRANCH && (
+        <div className="absolute top-2 right-2 z-50 bg-black/40 text-white/70 text-[10px] font-mono px-2 py-0.5 rounded pointer-events-none select-none">
+          {process.env.NEXT_PUBLIC_GIT_BRANCH}
+        </div>
+      )}
+      <KnowledgeDebugPanel />
       {/* Wall — taller to accommodate bigger chalkboard + wall details */}
       <div className="h-[56%] bg-[#d4b896] relative flex flex-col items-center justify-center pb-4">
 
@@ -364,123 +393,140 @@ function HomeworkPage() {
   )
 }
 
+// ── Verdict timer ─────────────────────────────────────────────────────────────
+// Counts down 5 s from when verdict = 'timing', then calls resolveVerdict.
+// Renders a draining circle → green check or red dot.
+
+function VerdictTimer({
+  problemId,
+  attemptId,
+  answer,
+  verdict,
+  resolveVerdict,
+}: {
+  problemId: string
+  attemptId: string
+  answer: string
+  verdict: AttemptVerdict | null
+  resolveVerdict: (problemId: string, attemptId: string, answer: string) => void
+}) {
+  const [remaining, setRemaining] = useState(5)
+
+  useEffect(() => {
+    if (verdict !== 'timing') return
+    setRemaining(5)
+    const start = Date.now()
+    const tick = setInterval(() => {
+      const left = Math.max(0, 5 - (Date.now() - start) / 1000)
+      setRemaining(left)
+      if (left === 0) {
+        clearInterval(tick)
+        resolveVerdict(problemId, attemptId, answer)
+      }
+    }, 50)
+    return () => clearInterval(tick)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verdict])
+
+  if (verdict === null) return null
+
+  if (verdict === 'timing') {
+    const r = 8
+    const circ = 2 * Math.PI * r
+    return (
+      <svg width="20" height="20" viewBox="0 0 20 20" className="inline-block align-middle ml-2 shrink-0">
+        <circle cx="10" cy="10" r={r} fill="none" stroke="#d1d5db" strokeWidth="2" />
+        <circle
+          cx="10" cy="10" r={r} fill="none"
+          stroke="#f59e0b" strokeWidth="2"
+          strokeDasharray={circ}
+          strokeDashoffset={circ * (1 - remaining / 5)}
+          strokeLinecap="round"
+          transform="rotate(-90 10 10)"
+        />
+      </svg>
+    )
+  }
+  if (verdict === 'correct')
+    return <span className="ml-2 text-green-600 font-bold text-lg leading-none">✓</span>
+  return <span className="ml-2 text-red-500 text-base leading-none">●</span>
+}
+
 // ── Algebra workbook page ─────────────────────────────────────────────────────
 
 function AlgebraPage() {
-  const { algebraLines, currentProblem, phase } = useDotStore()
-  const idx = currentProblem
-    ? ['p1', 'p2', 'p3', 'p4', 'p5'].indexOf(currentProblem.id)
-    : 0
+  const { problemBlocks, resolveVerdict } = useDotStore()
+  const bottomRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [problemBlocks])
 
   return (
     <div className="flex flex-col h-full p-6 overflow-y-auto">
-      {/* Header — printed style */}
       <div className="mb-6">
         <p className="text-xs text-[#8b6914]/45 mb-0.5 font-sans tracking-wide uppercase">
           name: Dot
         </p>
         <p className="text-base font-bold text-[#3a2a0a] font-serif tracking-tight">
-          Solving Equations — Problem {idx + 1}
+          Solving Equations
         </p>
       </div>
 
-      <div className="space-y-4">
-        {algebraLines.map((line) => (
-          <div key={line.id} className="transition-all duration-300">
-            {line.style === 'equation' ? (
-              /* Printed equation — formal font */
-              <p className="font-serif text-2xl font-bold text-[#3a2a0a] pb-3 border-b-2 border-[#3a2a0a]/20">
-                {line.text}
-              </p>
-            ) : (
-              /* Dot's work — handwriting font, always blue ink, no wrong marker */
-              <p
-                className={cn(
-                  'text-[#2e5cb8]',
-                  line.style === 'wrong-attempt' && 'text-2xl opacity-70',
-                  line.style === 'step' && 'text-xl',
-                  line.style === 'result' && 'text-2xl font-semibold',
-                )}
-                style={{ fontFamily: 'var(--font-handwriting)' }}
-              >
-                {line.text}
-              </p>
+      <div className="space-y-8">
+        {problemBlocks.map((block, blockIdx) => (
+          <div key={block.id}>
+            {blockIdx > 0 && (
+              <div className="mb-6 border-t border-dashed border-[#8b6914]/25" />
             )}
-          </div>
-        ))}
 
-        {phase === 'core-writing' && algebraLines.length <= 1 && (
-          <div className="flex gap-1 pt-4">
-            {[0, 150, 300].map((d) => (
-              <div
-                key={d}
-                className="size-2 rounded-full bg-[#8b6914]/35 animate-bounce"
-                style={{ animationDelay: `${d}ms` }}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ── Quiz sheet ─────────────────────────────────────────────────────────────────
-
-function QuizSheet() {
-  const { quizItems } = useDotStore()
-
-  return (
-    <div className="flex flex-col h-full p-4 font-mono overflow-y-auto">
-      <div className="flex items-center justify-between mb-3 pb-2 border-b border-[#8b6914]/20">
-        <p className="text-sm font-bold text-[#3a2a0a]">Solving Equations — Quiz</p>
-        <p className="text-xs text-[#8b6914]/60">
-          name: <span className="underline font-medium">Dot</span>
-        </p>
-      </div>
-
-      <div className="grid grid-cols-2 border-l border-t border-[#8b6914]/15 flex-1">
-        {quizItems.map((item, i) => (
-          <div
-            key={item.id}
-            className="p-3 border-r border-b border-[#8b6914]/15 min-h-[70px]"
-          >
-            <p className="text-[10px] text-[#8b6914]/55 mb-1.5">
-              {i + 1}. {item.equation}
+            {/* Problem header */}
+            <p className="font-serif text-2xl font-bold text-[#3a2a0a] pb-3 border-b-2 border-[#3a2a0a]/20 mb-4">
+              {block.equation}
             </p>
 
-            {item.state !== 'hidden' && (
-              <div className="flex items-center gap-1.5 mt-1">
-                {item.state === 'writing' ? (
-                  <div className="flex gap-0.5">
-                    {[0, 1, 2].map((j) => (
-                      <div
-                        key={j}
-                        className="size-1.5 rounded-full bg-[#4a9e6b] animate-bounce"
-                        style={{ animationDelay: `${j * 100}ms` }}
-                      />
+            {/* Attempts — all but the last are struck through */}
+            <div className="space-y-5">
+              {block.attempts.map((attempt, attemptIdx) => {
+                const isStruck = attemptIdx < block.attempts.length - 1
+                return (
+                  <div
+                    key={attempt.id}
+                    className={cn('space-y-1 transition-all duration-300', isStruck && 'opacity-45')}
+                    style={{ fontFamily: 'var(--font-handwriting)' }}
+                  >
+                    {attempt.steps.map((step, i) => (
+                      <p
+                        key={i}
+                        className={cn('text-xl text-[#2e5cb8]', isStruck && 'line-through')}
+                      >
+                        {step}
+                      </p>
                     ))}
-                  </div>
-                ) : (
-                  <>
-                    <span
-                      className={cn(
-                        'text-sm font-semibold',
-                        item.state === 'marked' ? 'text-red-500' : 'text-[#2d5a27]',
-                      )}
-                    >
-                      {item.dotAnswer}
-                    </span>
-                    {item.state === 'marked' && (
-                      <span className="text-red-500 text-sm leading-none">●</span>
+                    {attempt.answer !== null && (
+                      <div className="flex items-center">
+                        <p className={cn('text-2xl font-semibold text-[#2e5cb8]', isStruck && 'line-through')}>
+                          {attempt.answer}
+                        </p>
+                        {!isStruck && (
+                          <VerdictTimer
+                            problemId={block.id}
+                            attemptId={attempt.id}
+                            answer={attempt.answer}
+                            verdict={attempt.verdict}
+                            resolveVerdict={resolveVerdict}
+                          />
+                        )}
+                      </div>
                     )}
-                  </>
-                )}
-              </div>
-            )}
+                  </div>
+                )
+              })}
+            </div>
           </div>
         ))}
       </div>
+      <div ref={bottomRef} />
     </div>
   )
 }
@@ -520,12 +566,6 @@ function LeftPanel() {
   const content = getLeftContent(phase)
 
   if (content === 'classroom') return <ClassroomScene />
-  if (content === 'quiz')
-    return (
-      <BookPage>
-        <QuizSheet />
-      </BookPage>
-    )
   return (
     <BookPage>
       {phase.startsWith('onboarding') ? <HomeworkPage /> : <AlgebraPage />}
@@ -616,7 +656,7 @@ function ChatFeed() {
 
   // Only show text up to the first ||| so multi-message responses never
   // flash as one big blob before being split into separate bubbles.
-  const displayBuffer = streamBuffer.split('|||')[0].trimEnd()
+  const displayBuffer = streamBuffer.split('|||')[0].replace(/\[WORK:[^\]]*/g, '').trimEnd()
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -735,9 +775,15 @@ function OnboardingChips() {
 // ── Input bar ─────────────────────────────────────────────────────────────────
 
 function InputBar() {
-  const { phase, isStreaming, canTriggerQuiz, sendMessage, triggerQuiz, proceedToNext } =
-    useDotStore()
+  const { phase, isStreaming, dotIsTyping, sendMessage, proceedToNext } = useDotStore()
   const [text, setText] = useState('')
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    if (!isStreaming && !dotIsTyping) {
+      textareaRef.current?.focus()
+    }
+  }, [isStreaming, dotIsTyping])
 
   const blockedPhases: SessionPhase[] = [
     'landing',
@@ -745,12 +791,9 @@ function InputBar() {
     'onboarding-graded',
     'onboarding-correct',
     'core-writing',
-    'quiz-writing',
-    'quiz-intro',
-    'core-quiz-prompt',
   ]
   const isBlocked = blockedPhases.includes(phase)
-  const isNext = phase === 'onboarding-done' || phase === 'quiz-graded'
+  const isNext = phase === 'onboarding-done'
 
   // Onboarding teach uses chips, not free text
   if (phase === 'onboarding-teach') return <OnboardingChips />
@@ -761,6 +804,7 @@ function InputBar() {
     if (!canSend) return
     sendMessage(text.trim())
     setText('')
+    textareaRef.current?.focus()
   }
 
   function handleKey(e: React.KeyboardEvent) {
@@ -777,7 +821,7 @@ function InputBar() {
           onClick={proceedToNext}
           className="rounded-full bg-[#4a9e6b] px-6 py-2.5 text-sm font-semibold text-white shadow hover:bg-[#3a8a5a] transition active:scale-95"
         >
-          {phase === 'onboarding-done' ? 'Back to Class →' : 'Continue →'}
+          Back to Class →
         </button>
       </div>
     )
@@ -799,19 +843,9 @@ function InputBar() {
 
   return (
     <div className="px-3 pb-4 pt-2 space-y-2 shrink-0">
-      {canTriggerQuiz && phase === 'core-teach' && (
-        <div className="flex justify-center">
-          <button
-            onClick={triggerQuiz}
-            disabled={isStreaming}
-            className="rounded-full border border-[#4a9e6b] px-4 py-1.5 text-xs font-semibold text-[#4a9e6b] hover:bg-[#f0faf4] transition disabled:opacity-40"
-          >
-            Next: Dot's Quiz →
-          </button>
-        </div>
-      )}
       <div className="flex gap-2 items-end rounded-2xl border border-[#c8a96e]/45 bg-white px-3 py-2.5 shadow-sm">
         <textarea
+          ref={textareaRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKey}
@@ -850,10 +884,6 @@ function PhonePanel() {
     'core-intro': 'ready to learn',
     'core-writing': 'looking at the problem…',
     'core-teach': 'learning from you',
-    'core-quiz-prompt': 'ready for the quiz!',
-    'quiz-intro': 'quiz time 🐢',
-    'quiz-writing': 'working…',
-    'quiz-graded': 'done!!',
     home: 'thanks for teaching me!',
   }
 
@@ -891,6 +921,25 @@ function PhonePanel() {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
+function DevToolbar() {
+  const { phase, skipOnboarding } = useDotStore()
+  const isOnboarding = phase === 'landing' || phase.startsWith('onboarding')
+  if (!isOnboarding) return null
+  return (
+    <div className="fixed bottom-3 left-1/2 -translate-x-1/2 z-50">
+      <button
+        onClick={skipOnboarding}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono font-medium
+          bg-black/70 text-yellow-400 border border-yellow-400/40
+          hover:bg-black/90 hover:border-yellow-400/70 transition-all
+          shadow-lg backdrop-blur-sm"
+      >
+        <span className="opacity-70">⚡</span> skip onboarding
+      </button>
+    </div>
+  )
+}
+
 export default function TeachingPage() {
   const { phase } = useDotStore()
   const isBookOpen = getLeftContent(phase) !== 'classroom'
@@ -921,6 +970,7 @@ export default function TeachingPage() {
           <PhonePanel />
         </>
       )}
+      <DevToolbar />
     </div>
   )
 }

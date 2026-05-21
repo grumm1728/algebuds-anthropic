@@ -15,15 +15,17 @@ export async function POST(req: Request) {
     knowledge,
     phase,
     problem = null,
+    lastAttempt = null,
   }: {
     model?: string
     messages: { role: 'user' | 'assistant'; content: string }[]
     knowledge: KnowledgeState
     phase: SessionPhase
     problem?: AlgebraProblem | null
+    lastAttempt?: { steps: string[]; answer: string } | null
   } = await req.json()
 
-  const systemPrompt = buildDotSystemPrompt(knowledge, phase, problem)
+  const systemPrompt = buildDotSystemPrompt(knowledge, phase, problem, lastAttempt)
   const client = new Anthropic({ apiKey })
 
   const stream = new ReadableStream({

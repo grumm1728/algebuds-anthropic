@@ -13,12 +13,8 @@ export type SessionPhase =
   | 'onboarding-correct'   // A7: corrections animate, star appears
   | 'onboarding-done'      // A8: Next button visible
   | 'core-intro'           // B1: classroom + chat, new notebook on desk
-  | 'core-writing'         // B2: algebra workbook opens, wrong attempt fills in
-  | 'core-teach'           // B3–B6: teaching conversation + corrections
-  | 'core-quiz-prompt'     // B7: "Next: Dot's Quiz" CTA
-  | 'quiz-intro'           // C1: classroom, chalkboard clickable
-  | 'quiz-writing'         // C2–C3: quiz sheet fills in (30s)
-  | 'quiz-graded'          // C4: red marks, Dot reacts
+  | 'core-writing'         // B2: algebra workbook opens, Dot attempts problem
+  | 'core-teach'           // B3+: teaching conversation, Dot re-attempts on progress
   | 'home'                 // D1: full home state
 
 // ── Dot anim ───────────────────────────────────────────────────────────────────
@@ -40,6 +36,8 @@ export type KnowledgeState = {
   misconceptions: Misconception[]
   gaps: ConceptGap[]
   taughtConcepts: string[]
+  seenMisconceptionIds: string[]  // IDs ever active; prevents re-injection after correction
+  seenGapIds: string[]
 }
 
 // ── Problems ───────────────────────────────────────────────────────────────────
@@ -66,20 +64,23 @@ export type HomeworkLine = {
 }
 
 // ── Algebra workbook page ─────────────────────────────────────────────────────
-export type WorkLine = {
+
+// 'timing'  = answer written, 5-second countdown running
+// 'correct' = green checkmark
+// 'wrong'   = red dot (includes '???' answers)
+export type AttemptVerdict = 'timing' | 'correct' | 'wrong'
+
+export type WorkAttempt = {
   id: string
-  text: string
-  style: 'equation' | 'wrong-attempt' | 'step' | 'result'
-  crossedOut?: boolean
+  steps: string[]           // intermediate work lines from [WORK:] token
+  answer: string | null     // null while Dot is writing; '???' if stuck; 'x = N' otherwise
+  verdict: AttemptVerdict | null  // null until answer is set
 }
 
-// ── Quiz sheet ─────────────────────────────────────────────────────────────────
-export type QuizItem = {
-  id: string
+export type ProblemBlock = {
+  id: string                // matches AlgebraProblem.id
   equation: string
-  dotAnswer: string
-  isCorrect: boolean
-  state: 'hidden' | 'writing' | 'done' | 'marked'
+  attempts: WorkAttempt[]   // attempts[0..n-2] are struck through; last is active
 }
 
 // ── Chat ───────────────────────────────────────────────────────────────────────
@@ -89,7 +90,7 @@ export type TeachMessage = {
   text: string
 }
 
-export type ExplanationQuality = 'vague' | 'procedural' | 'conceptual'
+export type ExplanationQuality = 'vague' | 'procedural' | 'conceptual' | 'disengaged'
 
 export type EvaluationResult = {
   quality: ExplanationQuality
@@ -99,18 +100,3 @@ export type EvaluationResult = {
   followUpQuestion?: string
 }
 
-// ── Legacy (kept for type compat) ─────────────────────────────────────────────
-export type DotAttempt = {
-  steps: string[]
-  isCorrect: boolean
-  errorDescription?: string
-}
-
-export type TeachingSession = {
-  phase: SessionPhase
-  currentProblemIndex: number
-  knowledge: KnowledgeState
-  messages: TeachMessage[]
-  currentAttempt: DotAttempt | null
-  dotState: DotAnimState
-}

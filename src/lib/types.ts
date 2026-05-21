@@ -24,7 +24,6 @@ export type DotAnimState = 'idle' | 'thinking' | 'celebrating' | 'walking'
 export type Misconception = {
   id: string
   description: string
-  triggerCondition: string
 }
 
 export type ConceptGap = {
@@ -35,7 +34,6 @@ export type ConceptGap = {
 export type KnowledgeState = {
   misconceptions: Misconception[]
   gaps: ConceptGap[]
-  taughtConcepts: string[]
   seenMisconceptionIds: string[]  // IDs ever active; prevents re-injection after correction
   seenGapIds: string[]
 }
@@ -45,7 +43,6 @@ export type AlgebraProblem = {
   id: string
   equation: string
   answer: string
-  solutionSteps: string[]
   targetMisconceptions: string[]
   targetGaps: string[]
 }
@@ -94,9 +91,6 @@ export type ExplanationQuality = 'vague' | 'procedural' | 'conceptual' | 'diseng
 
 export type EvaluationResult = {
   quality: ExplanationQuality
-  conceptsCovered: string[]
   updatedKnowledge: KnowledgeState
-  shouldFollowUp: boolean
-  followUpQuestion?: string
 }
 

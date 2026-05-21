@@ -30,16 +30,6 @@ const OPENING_MESSAGE =
 const ALGEBRA_INTRO = (problem: AlgebraProblem, wrongAnswer: string) =>
   `ok!! my teacher also gave us algebra — equations with x. I tried this one: ${problem.equation}. I got ${wrongAnswer}. marked wrong. what am I doing wrong?`
 
-const FIRST_ATTEMPTS: Record<string, string> = {
-  p1:  'x = 17 (moved the 5 over and added it)',
-  p1b: 'x = 6 (moved the 3 over but kept subtracting)',
-  p2:  'x = 18 (moved the 3 over and added)',
-  p3:  'x = 5 (divided by 3)',
-  p4:  'x = 9.5 (divided 19 by 2 first)',
-  p5:  'x = 9 (divided 18 by 2 first)',
-  p6:  'x = 5.5 (multiplied the x but forgot about the 3 inside the parentheses)',
-}
-
 // Scripted first attempts — shown when the workbook opens and on each new problem.
 // Each problem has ordered options; first whose ifMisconceptionsActive are all met wins.
 // Last entry in each array is the unconditional default.
@@ -91,6 +81,31 @@ function toApiMessages(msgs: TeachMessage[]) {
     role: (m.sender === 'dot' ? 'assistant' : 'user') as 'user' | 'assistant',
     content: m.text,
   }))
+}
+
+// Checks whether Dot's answer satisfies an invented equation by substituting
+// the x value back in and comparing both sides numerically.
+function verifyAnswer(equation: string, answer: string): boolean {
+  const xMatch = answer.match(/^x\s*=\s*(-?\d+(?:\.\d+)?)$/)
+  if (!xMatch) return false
+  const x = parseFloat(xMatch[1])
+  const sides = equation.split('=')
+  if (sides.length !== 2) return false
+  try {
+    const prepare = (expr: string) =>
+      expr
+        .replace(/\)\s*x\b/g, ')*x')       // (1/3)x → (1/3)*x
+        .replace(/(\d)\s*\(\s*/g, '$1*(')   // 2(x → 2*(x
+        .replace(/(\d)\s*x\b/g, '$1*x')     // 2x → 2*x
+        .replace(/\bx\b/g, `(${x})`)        // x → (value)
+    // eslint-disable-next-line no-new-func
+    const lhs = Function(`'use strict'; return (${prepare(sides[0])})`)() as number
+    // eslint-disable-next-line no-new-func
+    const rhs = Function(`'use strict'; return (${prepare(sides[1])})`)() as number
+    return Math.abs(lhs - rhs) < 0.001
+  } catch {
+    return false
+  }
 }
 
 // Animates a WorkAttempt into view one line at a time.
@@ -180,13 +195,17 @@ export function DotProvider({ children }: { children: ReactNode }) {
   const [dotIsTyping, setDotIsTyping] = useState(false)
   const [chatVisible, setChatVisible] = useState(false)
   const [onboardingCount, setOnboardingCount] = useState(0)
-  const [perProblemExchangeCount, setPerProblemExchangeCount] = useState(0)
   const [disengagedCount, setDisengagedCount] = useState(0)
   const [homeworkLines, setHomeworkLines] = useState<HomeworkLine[]>(INITIAL_HOMEWORK)
   const [problemBlocks, setProblemBlocks] = useState<ProblemBlock[]>([])
   const [currentScriptedAttempt, setCurrentScriptedAttempt] = useState<{ steps: string[]; answer: string } | null>(null)
 
   const bufferRef = useRef('')
+  const knowledgeRef = useRef(knowledge)
+  knowledgeRef.current = knowledge
+  const problemBlocksRef = useRef(problemBlocks)
+  problemBlocksRef.current = problemBlocks
+
   const currentProblem = ALGEBRA_PROBLEMS[currentProblemIndex] ?? null
 
   // ── Core streaming ────────────────────────────────────────────────────────
@@ -251,26 +270,36 @@ export function DotProvider({ children }: { children: ReactNode }) {
 
         if (workMatch) {
           const parts = workMatch[1].split('|').map((p) => p.trim()).filter(Boolean)
-          // parts[0] = equation (already shown as block header — skip)
+          // parts[0] = equation
           // parts[1..n-2] = intermediate steps
           // parts[n-1] = answer ('???' when Dot is stuck)
           if (parts.length >= 2 && problem) {
+            const workEquation = parts[0]
             const steps = parts.slice(1, parts.length - 1)
             const answer = parts[parts.length - 1]
             const id = newAttemptId()
 
-            // Add empty attempt shell first, then animate lines in
-            setProblemBlocks((prev) => {
-              if (prev.length === 0) return prev
-              const last = prev[prev.length - 1]
-              const newAttempt: WorkAttempt = { id, steps: [], answer: null, verdict: null }
-              return [
-                ...prev.slice(0, -1),
-                { ...last, attempts: [...last.attempts, newAttempt] },
-              ]
-            })
-
-            animateAttemptLines(setProblemBlocks, problem.id, id, steps, answer)
+            if (workEquation === problem.equation) {
+              // Re-attempt on the current real problem — append to existing block
+              setProblemBlocks((prev) => {
+                if (prev.length === 0) return prev
+                const last = prev[prev.length - 1]
+                const newAttempt: WorkAttempt = { id, steps: [], answer: null, verdict: null }
+                return [
+                  ...prev.slice(0, -1),
+                  { ...last, attempts: [...last.attempts, newAttempt] },
+                ]
+              })
+              animateAttemptLines(setProblemBlocks, problem.id, id, steps, answer)
+            } else {
+              // Invented practice equation — create a new block for it
+              const inventedId = `invented-${Date.now()}`
+              setProblemBlocks((prev) => [
+                ...prev,
+                { id: inventedId, equation: workEquation, attempts: [{ id, steps: [], answer: null, verdict: null }] },
+              ])
+              animateAttemptLines(setProblemBlocks, inventedId, id, steps, answer)
+            }
           }
         }
 
@@ -320,7 +349,6 @@ export function DotProvider({ children }: { children: ReactNode }) {
     if (!nextProblem) return
 
     setCurrentProblemIndex(nextIndex)
-    setPerProblemExchangeCount(0)
     setDisengagedCount(0)
 
     // Compute injected knowledge synchronously so we can use it for attempt selection
@@ -382,7 +410,21 @@ export function DotProvider({ children }: { children: ReactNode }) {
 
   const resolveVerdict = useCallback((problemId: string, attemptId: string, answer: string) => {
     const problem = ALGEBRA_PROBLEMS.find((p) => p.id === problemId)
-    if (!problem) return
+
+    if (!problem) {
+      // Invented practice block — verify answer against the equation, don't advance
+      const block = problemBlocksRef.current.find((b) => b.id === problemId)
+      const isCorrect = answer !== '???' && !!block && verifyAnswer(block.equation, answer)
+      const verdict: AttemptVerdict = isCorrect ? 'correct' : 'wrong'
+      setProblemBlocks((prev) =>
+        prev.map((b) =>
+          b.id === problemId
+            ? { ...b, attempts: b.attempts.map((a) => a.id === attemptId ? { ...a, verdict } : a) }
+            : b
+        )
+      )
+      return
+    }
 
     const isCorrect = answer !== '???' && answer === problem.answer
     const verdict: AttemptVerdict = isCorrect ? 'correct' : 'wrong'
@@ -510,9 +552,6 @@ export function DotProvider({ children }: { children: ReactNode }) {
         }
 
       } else if (phase === 'core-teach') {
-        const newPerCount = perProblemExchangeCount + 1
-        setPerProblemExchangeCount(newPerCount)
-
         let updatedKnowledge = knowledge
         let quality = 'vague'
         try {
@@ -549,7 +588,7 @@ export function DotProvider({ children }: { children: ReactNode }) {
     },
     [
       phase, messages, knowledge, currentProblem, currentProblemIndex,
-      onboardingCount, perProblemExchangeCount, disengagedCount, currentScriptedAttempt,
+      onboardingCount, disengagedCount, currentScriptedAttempt,
       streamDotResponse, evaluateExplanation, advanceWorkspaceToProblem, addDotMessage,
     ],
   )
@@ -560,7 +599,9 @@ export function DotProvider({ children }: { children: ReactNode }) {
     if (phase === 'onboarding-done') {
       setPhase('core-intro')
       const problem = ALGEBRA_PROBLEMS[0]
-      setTimeout(() => addDotMessage(ALGEBRA_INTRO(problem, FIRST_ATTEMPTS[problem.id])), 300)
+      const options = SCRIPTED_FIRST_ATTEMPTS[problem.id] ?? []
+      const wrongAnswer = options[options.length - 1]?.answer ?? '???'
+      setTimeout(() => addDotMessage(ALGEBRA_INTRO(problem, wrongAnswer)), 300)
     }
   }, [phase, addDotMessage])
 
@@ -580,7 +621,9 @@ export function DotProvider({ children }: { children: ReactNode }) {
     setMessages([])
     setPhase('core-intro')
     const problem = ALGEBRA_PROBLEMS[0]
-    setTimeout(() => addDotMessage(ALGEBRA_INTRO(problem, FIRST_ATTEMPTS[problem.id])), 300)
+    const options = SCRIPTED_FIRST_ATTEMPTS[problem.id] ?? []
+    const wrongAnswer = options[options.length - 1]?.answer ?? '???'
+    setTimeout(() => addDotMessage(ALGEBRA_INTRO(problem, wrongAnswer)), 300)
   }, [addDotMessage])
 
   return (

@@ -154,12 +154,20 @@ function KnowledgeDebugPanel() {
                 <span key={g.id} className="text-amber-400">{g.id}</span>
               ))
           }
-          {knowledge.taughtConcepts.length > 0 && <>
-            <div className="text-white/50 uppercase tracking-wide mt-1">taught</div>
-            {knowledge.taughtConcepts.map((c, i) => (
-              <span key={i} className="text-green-400 truncate">{c}</span>
-            ))}
-          </>}
+          {(() => {
+            const activeMisIds = new Set(knowledge.misconceptions.map(m => m.id))
+            const activeGapIds = new Set(knowledge.gaps.map(g => g.id))
+            const taught = [
+              ...knowledge.seenMisconceptionIds.filter(id => !activeMisIds.has(id)),
+              ...knowledge.seenGapIds.filter(id => !activeGapIds.has(id)),
+            ]
+            return taught.length > 0 && <>
+              <div className="text-white/50 uppercase tracking-wide mt-1">taught</div>
+              {taught.map(id => (
+                <span key={id} className="text-green-400 truncate">{id}</span>
+              ))}
+            </>
+          })()}
         </div>
       )}
     </div>

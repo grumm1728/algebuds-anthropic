@@ -1,7 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { buildEvaluatorPrompt } from '@/lib/dot-prompt'
 import type { KnowledgeState, AlgebraProblem, EvaluationResult } from '@/lib/types'
-import { ALL_MISCONCEPTIONS, ALL_GAPS } from '@/lib/problems'
 
 const apiKey = process.env.ANTHROPIC_API_KEY
 
@@ -35,9 +34,6 @@ export async function POST(req: Request) {
 
   let parsed: {
     quality: string
-    conceptsCovered: string[]
-    shouldFollowUp: boolean
-    followUpQuestion: string | null
     misconceptionsAddressed: string[]
     gapsAddressed: string[]
   }
@@ -46,18 +42,12 @@ export async function POST(req: Request) {
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
     parsed = JSON.parse(cleaned)
   } catch {
-    // Fallback if Claude returns invalid JSON
     parsed = {
       quality: 'vague',
-      conceptsCovered: [],
-      shouldFollowUp: false,
-      followUpQuestion: null,
       misconceptionsAddressed: [],
       gapsAddressed: [],
     }
   }
-
-  console.log('[eval] quality:', parsed.quality, '| misconceptionsAddressed:', parsed.misconceptionsAddressed, '| gapsAddressed:', parsed.gapsAddressed)
 
   // If the evaluator marks disengaged but still flagged misconceptions, that's contradictory —
   // upgrade to vague so the misconception removal actually runs.
@@ -66,17 +56,17 @@ export async function POST(req: Request) {
       ? 'vague'
       : parsed.quality
 
-  console.log('[eval] effectiveQuality:', effectiveQuality)
+  console.log('[eval] quality:', effectiveQuality, '| misconceptionsAddressed:', parsed.misconceptionsAddressed, '| gapsAddressed:', parsed.gapsAddressed)
 
   // Quality-gated knowledge removal:
   //   conceptual  → remove from both misconceptions and gaps
   //   procedural  → remove from misconceptions only (knows the step, not the why)
-  //   vague       → remove from misconceptions only (on-topic but imprecise — same gate as procedural)
+  //   vague       → no removal (on-topic but too imprecise to act on)
   //   disengaged  → no removal
   const isConceptual = effectiveQuality === 'conceptual'
-  const isAtLeastProcedural = effectiveQuality === 'procedural' || effectiveQuality === 'vague'
+  const isProcedural = effectiveQuality === 'procedural'
 
-  const updatedMisconceptions = (isConceptual || isAtLeastProcedural)
+  const updatedMisconceptions = (isConceptual || isProcedural)
     ? knowledge.misconceptions.filter((m) => !parsed.misconceptionsAddressed.includes(m.id))
     : knowledge.misconceptions
 
@@ -84,29 +74,9 @@ export async function POST(req: Request) {
     ? knowledge.gaps.filter((g) => !parsed.gapsAddressed.includes(g.id))
     : knowledge.gaps
 
-  // Newly taught concepts — only record what was actually removed
-  const removedGapIds = isConceptual ? parsed.gapsAddressed : []
-  const removedMisconceptionIds = (isConceptual || isAtLeastProcedural) ? parsed.misconceptionsAddressed : []
-
-  const newlyCovered = [
-    ...removedGapIds.map(
-      (id) => ALL_GAPS.find((g) => g.id === id)?.concept ?? id,
-    ),
-    ...removedMisconceptionIds.map(
-      (id) =>
-        ALL_MISCONCEPTIONS.find((m) => m.id === id)?.description
-          ? `Corrected: ${ALL_MISCONCEPTIONS.find((m) => m.id === id)!.description}`
-          : id,
-    ),
-  ]
-
   const updatedKnowledge: KnowledgeState = {
     misconceptions: updatedMisconceptions,
     gaps: updatedGaps,
-    taughtConcepts: [
-      ...knowledge.taughtConcepts,
-      ...newlyCovered.filter((c) => !knowledge.taughtConcepts.includes(c)),
-    ],
     seenMisconceptionIds: knowledge.seenMisconceptionIds,
     seenGapIds: knowledge.seenGapIds,
   }
@@ -114,11 +84,8 @@ export async function POST(req: Request) {
   console.log('[eval] knowledge after:', { misconceptions: updatedKnowledge.misconceptions.map(m => m.id), gaps: updatedKnowledge.gaps.map(g => g.id) })
 
   const result: EvaluationResult = {
-    quality: parsed.quality as EvaluationResult['quality'],
-    conceptsCovered: parsed.conceptsCovered,
+    quality: effectiveQuality as EvaluationResult['quality'],
     updatedKnowledge,
-    shouldFollowUp: parsed.shouldFollowUp,
-    followUpQuestion: parsed.followUpQuestion ?? undefined,
   }
 
   return new Response(JSON.stringify(result), {

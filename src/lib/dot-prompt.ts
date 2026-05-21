@@ -1,4 +1,5 @@
 import type { KnowledgeState, AlgebraProblem, SessionPhase } from './types'
+import { ALL_MISCONCEPTIONS, ALL_GAPS } from './problems'
 
 // ── Dot's core persona (injected into every prompt) ───────────────────────────
 
@@ -65,9 +66,20 @@ function knowledgeBlock(knowledge: KnowledgeState): string {
       ? knowledge.gaps.map((g) => `  - ${g.concept}`).join('\n')
       : '  (none remaining)'
 
+  // Derive taught concepts from seen IDs minus whatever is still active
+  const activeMisIds = new Set(knowledge.misconceptions.map((m) => m.id))
+  const activeGapIds = new Set(knowledge.gaps.map((g) => g.id))
+  const learnedMisconceptions = knowledge.seenMisconceptionIds
+    .filter((id) => !activeMisIds.has(id))
+    .map((id) => `Corrected: ${ALL_MISCONCEPTIONS.find((m) => m.id === id)?.description ?? id}`)
+  const learnedGaps = knowledge.seenGapIds
+    .filter((id) => !activeGapIds.has(id))
+    .map((id) => ALL_GAPS.find((g) => g.id === id)?.concept ?? id)
+  const taught = [...learnedGaps, ...learnedMisconceptions]
+
   const taughtLines =
-    knowledge.taughtConcepts.length > 0
-      ? knowledge.taughtConcepts.map((c) => `  - ${c}`).join('\n')
+    taught.length > 0
+      ? taught.map((c) => `  - ${c}`).join('\n')
       : '  (nothing yet — wait for the student to teach you)'
 
   return `\
@@ -182,9 +194,6 @@ THE STUDENT'S EXPLANATION:
 Evaluate the explanation and respond with a JSON object with this exact shape:
 {
   "quality": "disengaged" | "vague" | "procedural" | "conceptual",
-  "conceptsCovered": string[],
-  "shouldFollowUp": boolean,
-  "followUpQuestion": string | null,
   "misconceptionsAddressed": string[],
   "gapsAddressed": string[]
 }
@@ -208,9 +217,7 @@ Definitions (use the FIRST category that fits):
 - "conceptual": explains the underlying principle (e.g. equality, inverse operations, \
   why balance must be preserved). Dot can genuinely update its knowledge from this.
 
-"conceptsCovered" should list the concepts from the needs-to-learn list that were meaningfully addressed.
 "misconceptionsAddressed" and "gapsAddressed" should list the IDs of items that were meaningfully corrected/filled.
-"shouldFollowUp" is true when the quality is procedural or vague and a follow-up question would help.
 
 Respond with only the JSON object — no markdown, no explanation.`
 }
